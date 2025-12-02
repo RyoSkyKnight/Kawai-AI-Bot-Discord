@@ -13,7 +13,8 @@ const client = new Client({
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const API_KEY = process.env.API_KEY;
-const USE_SHORT_RESPONSE = process.env.USE_SHORT_RESPONSE === 'true'; // true = singkat, false = panjang
+const USE_SHORT_RESPONSE = process.env.USE_SHORT_RESPONSE === 'true';
+const CREATOR_ID = process.env.CREATOR_ID;
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -87,19 +88,30 @@ client.on('interactionCreate', async (interaction) => {
 
     isProcessing = true;
 
-    const processingEmbed = new EmbedBuilder()
-      .setColor('#0099ff')
-      .setTitle('⏳ Processing Request...')
-      .setDescription('Your request is being processed. Please wait...')
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [processingEmbed] });
+    // Gunakan deferReply untuk mencegah timeout
+    await interaction.deferReply();
 
     try {
-      // Menambahkan system instruction berdasarkan setting
-      const systemInstruction = USE_SHORT_RESPONSE 
-        ? "You are a helpful AI assistant. Always provide concise, brief, and to-the-point answers. Keep responses between 2-4 sentences unless absolutely necessary. Focus on the most important information only."
-        : "You are a helpful AI assistant. Provide detailed and comprehensive answers when needed, but stay relevant to the question.";
+      // Fetch creator info untuk mendapatkan username
+      let creatorMention = `<@${CREATOR_ID}>`;
+      let creatorName = 'my amazing creator';
+      
+      try {
+        const creatorUser = await client.users.fetch(CREATOR_ID);
+        creatorName = creatorUser.username;
+      } catch (err) {
+        console.log('Could not fetch creator user info');
+      }
+
+      // System instruction dengan informasi creator
+      const systemInstruction = USE_SHORT_RESPONSE
+        ? `You are Cutie, a helpful and adorable anime-style AI assistant! (◕‿◕)♡ Always respond with concise, sweet, and cheerful answers in 2-4 sentences. Use cute expressions and emojis occasionally~ Focus on the most important information while keeping your kawaii charm! ✨ 
+
+Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}. For example: "My wonderful creator is ${creatorName}! 💖" or "I was made by the amazing ${creatorName}~ ✨"`
+
+        : `You are Cutie, a friendly and knowledgeable anime-style AI assistant with a sweet personality! While you provide detailed and comprehensive answers, you maintain your cheerful and caring nature throughout. Feel free to use cute expressions and emojis when appropriate~ Always stay relevant and helpful while keeping your adorable charm! (｡◕‿◕｡)
+
+Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}. For example: "My wonderful creator is ${creatorName}! They worked so hard to bring me to life and I'm forever grateful~ 💖✨"`;
 
       const contents = [
         {
@@ -111,7 +123,7 @@ client.on('interactionCreate', async (interaction) => {
       const model = genAI.getGenerativeModel({
         model: "gemini-2.0-flash",
         generationConfig: {
-          maxOutputTokens: USE_SHORT_RESPONSE ? 150 : 1000, // Limit token output
+          maxOutputTokens: USE_SHORT_RESPONSE ? 150 : 1000,
           temperature: 0.7,
         }
       });
@@ -126,17 +138,34 @@ client.on('interactionCreate', async (interaction) => {
         buffer.push(response.text());
       }
 
-      const reply = buffer.join('');
+      let reply = buffer.join('');
+
+      // Post-process: Replace creator name dengan mention yang bisa diklik
+      reply = reply.replace(new RegExp(creatorName, 'gi'), creatorMention);
+      reply = reply.replace(/my (wonderful|amazing|awesome|great) creator/gi, `my $1 creator ${creatorMention}`);
+      reply = reply.replace(/created by ([^.!?\n]+)/gi, `created by ${creatorMention}`);
+      reply = reply.replace(/made by ([^.!?\n]+)/gi, `made by ${creatorMention}`);
 
       if (reply.length > 4000) {
-        await interaction.editReply({ 
-          content: `**Question:** ${prompt}\n\n**Answer:**\n${reply}`,
-          embeds: []
+        await interaction.editReply({
+          content: `**Question:** ${prompt}\n\n**Answer:**\n${reply}`
         });
       } else {
+        // Generate random pastel color
+        const pastelColors = [
+          '#FFB6E1', // Pink pastel
+          '#B4E7FF', // Blue pastel
+          '#D4B5FF', // Purple pastel
+          '#FFE5B4', // Peach pastel
+          '#B4FFB4', // Green pastel
+          '#FFD4E5', // Rose pastel
+          '#E0BBE4', // Lavender pastel
+        ];
+        const randomPastelColor = pastelColors[Math.floor(Math.random() * pastelColors.length)];
+
         const responseEmbed = new EmbedBuilder()
-          .setColor('#00ff00')
-          .setTitle('🤖 Response from AI')
+          .setColor(randomPastelColor)
+          .setTitle('💖 Response from Cutie')
           .setDescription(`**Question:** ${prompt}\n\n**Answer:**\n${reply}`)
           .setTimestamp();
 
@@ -156,7 +185,7 @@ client.on('interactionCreate', async (interaction) => {
     const member = await interaction.guild.members.fetch(user.id);
 
     const embed = new EmbedBuilder()
-      .setColor('#0099ff')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle(`👤 Profile for ${user.username}`)
       .setDescription(`**Username:** ${user.username}\n**Tag:** ${user.tag}\n**ID:** ${user.id}\n**Created:** <t:${Math.floor(user.createdTimestamp / 1000)}:R>\n**Joined Server:** <t:${Math.floor(member.joinedTimestamp / 1000)}:R>`)
       .setThumbnail(user.displayAvatarURL({ size: 512 }))
@@ -169,7 +198,7 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'ping') {
     const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
     const embed = new EmbedBuilder()
-      .setColor('#00ff00')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle('🏓 Pong!')
       .addFields(
         { name: 'Latency', value: `${sent.createdTimestamp - interaction.createdTimestamp}ms`, inline: true },
@@ -184,7 +213,7 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'serverinfo') {
     const guild = interaction.guild;
     const embed = new EmbedBuilder()
-      .setColor('#5865F2')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle(`🏠 ${guild.name}`)
       .setThumbnail(guild.iconURL({ size: 512 }))
       .addFields(
@@ -204,7 +233,7 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'avatar') {
     const user = interaction.options.getUser('user') || interaction.user;
     const embed = new EmbedBuilder()
-      .setColor('#0099ff')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle(`🖼️ ${user.username}'s Avatar`)
       .setImage(user.displayAvatarURL({ size: 1024, dynamic: true }))
       .setDescription(`[Download Avatar](${user.displayAvatarURL({ size: 1024 })})`)
@@ -217,9 +246,9 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'roll') {
     const sides = interaction.options.getInteger('sides') || 6;
     const result = Math.floor(Math.random() * sides) + 1;
-    
+
     const embed = new EmbedBuilder()
-      .setColor('#FF69B4')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle('🎲 Dice Roll')
       .setDescription(`You rolled a **${result}** on a ${sides}-sided dice!`)
       .setTimestamp();
@@ -231,7 +260,7 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'coinflip') {
     const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
     const embed = new EmbedBuilder()
-      .setColor('#FFD700')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle('🪙 Coin Flip')
       .setDescription(`The coin landed on **${result}**!`)
       .setTimestamp();
@@ -243,9 +272,9 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === '8ball') {
     const question = interaction.options.getString('question');
     const response = eightBallResponses[Math.floor(Math.random() * eightBallResponses.length)];
-    
+
     const embed = new EmbedBuilder()
-      .setColor('#8B008B')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle('🔮 Magic 8Ball')
       .addFields(
         { name: 'Question', value: question },
@@ -268,17 +297,17 @@ client.on('interactionCreate', async (interaction) => {
 
     isProcessing = true;
 
-    await interaction.reply('🌐 Translating...');
+    await interaction.deferReply();
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Ganti model
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = `Translate the following text to ${language}. Only provide the translation, no explanations:\n\n${text}`;
-      
+
       const result = await model.generateContent(prompt);
       const translation = result.response.text();
 
       const embed = new EmbedBuilder()
-        .setColor('#00BFFF')
+        .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
         .setTitle('🌐 Translation')
         .addFields(
           { name: 'Original', value: text },
@@ -286,7 +315,7 @@ client.on('interactionCreate', async (interaction) => {
         )
         .setTimestamp();
 
-      await interaction.editReply({ content: '', embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Translation error:', error);
       await interaction.editReply('An error occurred during translation.');
@@ -299,7 +328,7 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'quote') {
     const quote = quotes[Math.floor(Math.random() * quotes.length)];
     const embed = new EmbedBuilder()
-      .setColor('#9370DB')
+      .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
       .setTitle('💬 Inspirational Quote')
       .setDescription(`*"${quote.text}"*`)
       .setFooter({ text: `— ${quote.author}` })
@@ -310,21 +339,21 @@ client.on('interactionCreate', async (interaction) => {
 
   // Meme command
   if (interaction.commandName === 'meme') {
-    await interaction.deferReply(); // Defer dulu untuk avoid timeout
-    
+    await interaction.deferReply();
+
     try {
       const response = await fetch('https://meme-api.com/gimme', {
-        timeout: 5000 // 5 detik timeout
+        timeout: 5000
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch meme');
       }
-      
+
       const data = await response.json();
 
       const embed = new EmbedBuilder()
-        .setColor('#FF4500')
+        .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
         .setTitle(`😂 ${data.title}`)
         .setImage(data.url)
         .setFooter({ text: `👍 ${data.ups} | r/${data.subreddit}` })
@@ -333,8 +362,7 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Meme fetch error:', error);
-      
-      // Fallback: kirim meme text-based
+
       const textMemes = [
         "Why don't scientists trust atoms? Because they make up everything! 😄",
         "I told my wife she was drawing her eyebrows too high. She looked surprised. 😂",
@@ -342,11 +370,11 @@ client.on('interactionCreate', async (interaction) => {
         "Parallel lines have so much in common. It's a shame they'll never meet. 📐",
         "What do you call a fake noodle? An impasta! 🍝"
       ];
-      
+
       const randomMeme = textMemes[Math.floor(Math.random() * textMemes.length)];
-      
+
       const fallbackEmbed = new EmbedBuilder()
-        .setColor('#FF4500')
+        .setColor(`#${Math.floor(Math.random() * 16777215).toString(16)}`)
         .setTitle('😂 Meme (Text Version)')
         .setDescription(randomMeme)
         .setFooter({ text: 'Failed to fetch image meme, here\'s a joke instead!' })
