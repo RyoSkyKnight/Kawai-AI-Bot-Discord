@@ -40,7 +40,7 @@ const quotes = [
   { text: "Life is what happens when you're busy making other plans.", author: "John Lennon" },
   { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
   { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
-  { text: "Believe you can and you'r e halfway there.", author: "Theodore Roosevelt" },
+  { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
   { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" }
 ];
 
