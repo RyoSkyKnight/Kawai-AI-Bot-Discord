@@ -1,0 +1,23 @@
+FROM node:18-alpine
+
+# simple restart-loop entrypoint: runs the CMD and restarts it on exit
+RUN apk add --no-cache bash \
+ && cat > /usr/local/bin/restart-loop.sh <<'EOF'
+#!/bin/bash
+set -e
+while true; do
+    # run the passed command (defaults to CMD, e.g. node index.js)
+    "$@" || true
+    sleep 1
+done
+EOF
+
+RUN chmod +x /usr/local/bin/restart-loop.sh
+
+ENTRYPOINT ["/usr/local/bin/restart-loop.sh"]
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 9090
+CMD ["node", "index.cjs"]    
