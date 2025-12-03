@@ -917,14 +917,6 @@ const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
     );
 
     console.log(`Successfully reloaded ${commands.length} application (/) commands globally.`);
-    console.log('\n📋 Command Categories:');
-    console.log('- General: 15 commands');
-    console.log('- Fun & Games: 12 commands');
-    console.log('- Utilities: 15 commands');
-    console.log('- Moderation: 14 commands');
-    console.log('- Role Management: 5 commands');
-    console.log('- Welcome System: 7 commands');
-    console.log('- Logging: 2 commands');
     console.log(`\n✅ Total: ${commands.length} commands`);
   } catch (error) {
     console.error('Error registering commands:', error);
