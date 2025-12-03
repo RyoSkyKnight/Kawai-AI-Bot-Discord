@@ -32,22 +32,68 @@ const afkUsers = new Map(); // Temporary storage for AFK (doesn't need persisten
 
 // Database helper functions
 async function getGuildSettings(guildId) {
-  const { data, error } = await supabase
-    .from('guild_settings')
-    .select('*')
-    .eq('guild_id', guildId)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('guild_settings')
+      .select('*')
+      .eq('guild_id', guildId)
+      .single();
 
-  if (error && error.code !== 'PGRST116') console.error('Error fetching guild settings:', error);
-  return data || {};
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return {};
+      }
+      console.error('Error fetching guild settings:', error);
+      return {};
+    }
+
+    return data || {};
+  } catch (err) {
+    console.error('Exception in getGuildSettings:', err);
+    return {};
+  }
 }
 
 async function updateGuildSettings(guildId, settings) {
-  const { error } = await supabase
-    .from('guild_settings')
-    .upsert({ guild_id: guildId, ...settings, updated_at: new Date() });
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from('guild_settings')
+      .select('*')
+      .eq('guild_id', guildId)
+      .single();
 
-  if (error) console.error('Error updating guild settings:', error);
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error fetching existing settings:', fetchError);
+    }
+
+    const dataToUpsert = {
+      guild_id: guildId,
+      ...settings,
+      updated_at: new Date().toISOString()
+    };
+
+    if (!existing) {
+      dataToUpsert.created_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from('guild_settings')
+      .upsert(dataToUpsert, {
+        onConflict: 'guild_id'
+      })
+      .select();
+
+    if (error) {
+      console.error('Error updating guild settings:', error);
+      return false;
+    }
+
+    console.log('Settings updated successfully:', data);
+    return true;
+  } catch (err) {
+    console.error('Exception in updateGuildSettings:', err);
+    return false;
+  }
 }
 
 async function addWarning(guildId, userId, reason, moderatorId) {
@@ -269,14 +315,14 @@ client.on('interactionCreate', async (interaction) => {
         .setFooter({ text: 'Use /command to execute any command' })
         .setTimestamp();
 
-      await interaction.reply({ embeds: [helpEmbed] });
+      await interaction.editReply({ embeds: [helpEmbed] });
     }
 
     if (commandName === 'ask') {
       const prompt = interaction.options.getString('question');
 
       if (isProcessing) {
-        await interaction.reply({ content: '⏳ The bot is processing another request, please wait.', ephemeral: true });
+        await interaction.editReply({ content: '⏳ The bot is processing another request, please wait.', ephemeral: true });
         return;
       }
 
@@ -296,14 +342,12 @@ client.on('interactionCreate', async (interaction) => {
 
         const systemInstruction = USE_SHORT_RESPONSE
           ? `You are Cutie, a helpful and adorable anime-style AI assistant! (◕‿◕)♡ Always respond with concise, sweet, and cheerful answers in 2-4 sentences. Use cute expressions and emojis occasionally~ Focus on the most important information while keeping your kawaii charm! ✨ 
-
-Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}. For example: "My wonderful creator is ${creatorName}! 💖"`
+          Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}. For example: "My wonderful creator is ${creatorName}! 💖"`
           : `You are Cutie, a friendly and knowledgeable anime-style AI assistant with a sweet personality! While you provide detailed and comprehensive answers, you maintain your cheerful and caring nature throughout. Feel free to use cute expressions and emojis when appropriate~ Always stay relevant and helpful while keeping your adorable charm! (｡◕‿◕｡)
-
-Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}.`;
+          Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}.`;
 
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.0-flash",
           generationConfig: {
             maxOutputTokens: USE_SHORT_RESPONSE ? 150 : 1000,
             temperature: 0.7,
@@ -664,7 +708,7 @@ Important: When asked about your creator, master, owner, or who made you, respon
       await interaction.deferReply();
 
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const prompt = `Translate the following text to ${language}. Only provide the translation, no explanations:\n\n${text}`;
 
         const result = await model.generateContent(prompt);
@@ -772,10 +816,16 @@ Important: When asked about your creator, master, owner, or who made you, respon
       try {
         const city = interaction.options.getString('city');
         const response = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+
+        if (!response.ok) {
+          await interaction.editReply({ content: '❌ City not found!' });
+          return;
+        }
+
         const data = await response.json();
 
-        if (data.error) {
-          await interaction.editReply({ content: '❌ City not found!' });
+        if (!data.current_condition || data.current_condition.length === 0) {
+          await interaction.editReply({ content: '❌ Weather data not available for this city!' });
           return;
         }
 
@@ -783,7 +833,6 @@ Important: When asked about your creator, master, owner, or who made you, respon
         const embed = new EmbedBuilder()
           .setColor('#3498DB')
           .setTitle(`🌤️ Weather in ${city}`)
-          .setThumbnail(current.weatherIconUrl[0].value)
           .addFields(
             { name: 'Temperature', value: `${current.temp_C}°C / ${current.temp_F}°F`, inline: true },
             { name: 'Feels Like', value: `${current.FeelsLikeC}°C / ${current.FeelsLikeF}°F`, inline: true },
@@ -794,9 +843,22 @@ Important: When asked about your creator, master, owner, or who made you, respon
           )
           .setTimestamp();
 
+        const iconUrl =
+          current.weatherIconUrl &&
+            current.weatherIconUrl[0] &&
+            current.weatherIconUrl[0].value &&
+            current.weatherIconUrl[0].value.trim() !== ""
+            ? current.weatherIconUrl[0].value
+            : null;
+
+        if (iconUrl) {
+          embed.setThumbnail(iconUrl);
+        }
+
         await interaction.editReply({ embeds: [embed] });
       } catch (error) {
-        await interaction.editReply({ content: '❌ Failed to fetch weather data!' });
+        console.error('Weather error:', error);
+        await interaction.editReply({ content: '❌ Failed to fetch weather data! Please try another city.' });
       }
     }
 
@@ -867,7 +929,7 @@ Important: When asked about your creator, master, owner, or who made you, respon
       const text = interaction.options.getString('text');
 
       if (text.length > 15) {
-        await interaction.reply({ content: '❌ Text too long! Please use 15 characters or less.', ephemeral: true });
+        await interaction.editReply({ content: '❌ Text too long! Please use 15 characters or less.', ephemeral: true });
         return;
       }
 
@@ -1500,571 +1562,645 @@ Important: When asked about your creator, master, owner, or who made you, respon
       }
     }
 
-if (commandName === 'clear') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage messages!', ephemeral: true });
-      return;
+    if (commandName === 'clear') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage messages!', ephemeral: true });
+        return;
+      }
+
+      const amount = interaction.options.getInteger('amount');
+      const targetUser = interaction.options.getUser('user');
+
+      if (amount < 1 || amount > 100) {
+        await interaction.reply({ content: '❌ Please provide a number between 1 and 100!', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        const messages = await interaction.channel.messages.fetch({ limit: amount });
+        const filteredMessages = targetUser
+          ? messages.filter(msg => msg.author.id === targetUser.id)
+          : messages;
+
+        const deleted = await interaction.channel.bulkDelete(filteredMessages, true);
+
+        await interaction.editReply({ content: `✅ Deleted ${deleted.size} messages!` });
+      } catch (error) {
+        await interaction.editReply({ content: '❌ Failed to delete messages!' });
+      }
     }
 
-    const amount = interaction.options.getInteger('amount');
-    const targetUser = interaction.options.getUser('user');
+    if (commandName === 'slowmode') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
+        return;
+      }
 
-    if (amount < 1 || amount > 100) {
-      await interaction.reply({ content: '❌ Please provide a number between 1 and 100!', ephemeral: true });
-      return;
+      const duration = interaction.options.getInteger('duration');
+
+      if (duration < 0 || duration > 21600) {
+        await interaction.reply({ content: '❌ Duration must be between 0 and 21600 seconds (6 hours)!', ephemeral: true });
+        return;
+      }
+
+      try {
+        await interaction.channel.setRateLimitPerUser(duration);
+
+        const embed = new EmbedBuilder()
+          .setColor(duration === 0 ? '#00FF00' : '#FFA500')
+          .setTitle(duration === 0 ? '✅ Slowmode Disabled' : '⏰ Slowmode Enabled')
+          .setDescription(duration === 0 ? 'Slowmode has been disabled.' : `Slowmode set to ${duration} seconds.`)
+          .setTimestamp();
+
+        await interaction.reply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to set slowmode!', ephemeral: true });
+      }
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    if (commandName === 'lock') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
+        return;
+      }
 
-    try {
-      const messages = await interaction.channel.messages.fetch({ limit: amount });
-      const filteredMessages = targetUser
-        ? messages.filter(msg => msg.author.id === targetUser.id)
-        : messages;
+      const reason = interaction.options.getString('reason') || 'No reason provided';
 
-      const deleted = await interaction.channel.bulkDelete(filteredMessages, true);
+      try {
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
+          SendMessages: false
+        });
 
-      await interaction.editReply({ content: `✅ Deleted ${deleted.size} messages!` });
-    } catch (error) {
-      await interaction.editReply({ content: '❌ Failed to delete messages!' });
-    }
-  }
+        const embed = new EmbedBuilder()
+          .setColor('#FF0000')
+          .setTitle('🔒 Channel Locked')
+          .setDescription(`This channel has been locked.\n**Reason:** ${reason}`)
+          .setFooter({ text: `Locked by ${interaction.user.tag}` })
+          .setTimestamp();
 
-  if (commandName === 'slowmode') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
-      return;
-    }
-
-    const duration = interaction.options.getInteger('duration');
-
-    if (duration < 0 || duration > 21600) {
-      await interaction.reply({ content: '❌ Duration must be between 0 and 21600 seconds (6 hours)!', ephemeral: true });
-      return;
+        await interaction.reply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to lock channel!', ephemeral: true });
+      }
     }
 
-    try {
-      await interaction.channel.setRateLimitPerUser(duration);
+    if (commandName === 'unlock') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
+        return;
+      }
 
-      const embed = new EmbedBuilder()
-        .setColor(duration === 0 ? '#00FF00' : '#FFA500')
-        .setTitle(duration === 0 ? '✅ Slowmode Disabled' : '⏰ Slowmode Enabled')
-        .setDescription(duration === 0 ? 'Slowmode has been disabled.' : `Slowmode set to ${duration} seconds.`)
-        .setTimestamp();
+      const reason = interaction.options.getString('reason') || 'No reason provided';
 
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to set slowmode!', ephemeral: true });
-    }
-  }
+      try {
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
+          SendMessages: null
+        });
 
-  if (commandName === 'lock') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
-      return;
-    }
+        const embed = new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('🔓 Channel Unlocked')
+          .setDescription(`This channel has been unlocked.\n**Reason:** ${reason}`)
+          .setFooter({ text: `Unlocked by ${interaction.user.tag}` })
+          .setTimestamp();
 
-    const reason = interaction.options.getString('reason') || 'No reason provided';
-
-    try {
-      await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-        SendMessages: false
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle('🔒 Channel Locked')
-        .setDescription(`This channel has been locked.\n**Reason:** ${reason}`)
-        .setFooter({ text: `Locked by ${interaction.user.tag}` })
-        .setTimestamp();
-
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to lock channel!', ephemeral: true });
-    }
-  }
-
-  if (commandName === 'unlock') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
-      return;
+        await interaction.reply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to unlock channel!', ephemeral: true });
+      }
     }
 
-    const reason = interaction.options.getString('reason') || 'No reason provided';
+    // ============================================
+    // ROLE MANAGEMENT COMMANDS
+    // ============================================
+    if (commandName === 'addrole') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
 
-    try {
-      await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-        SendMessages: null
-      });
+      const user = interaction.options.getUser('user');
+      const role = interaction.options.getRole('role');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
 
-      const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('🔓 Channel Unlocked')
-        .setDescription(`This channel has been unlocked.\n**Reason:** ${reason}`)
-        .setFooter({ text: `Unlocked by ${interaction.user.tag}` })
-        .setTimestamp();
+      await interaction.deferReply();
 
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to unlock channel!', ephemeral: true });
+      try {
+        // Fetch member with force to ensure we get updated data
+        let member;
+        try {
+          member = await interaction.guild.members.fetch({ user: user.id, force: true });
+        } catch (fetchError) {
+          await interaction.editReply({ content: '❌ User is not a member of this server!' });
+          return;
+        }
+
+        // Check bot permissions
+        const botMember = interaction.guild.members.me;
+        if (role.position >= botMember.roles.highest.position) {
+          await interaction.editReply({ content: '❌ I cannot manage this role! My highest role must be above this role.' });
+          return;
+        }
+
+        // Check user permissions
+        if (role.position >= interaction.member.roles.highest.position) {
+          await interaction.editReply({ content: '❌ You cannot manage this role! Your highest role must be above this role.' });
+          return;
+        }
+
+        // Check if member already has the role
+        if (member.roles.cache.has(role.id)) {
+          await interaction.editReply({ content: `❌ ${user.tag} already has the ${role.name} role!` });
+          return;
+        }
+
+        // Add the role
+        await member.roles.add(role, reason);
+
+        const embed = new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('✅ Role Added')
+          .addFields(
+            { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
+            { name: 'Role', value: role.name, inline: true },
+            { name: 'Moderator', value: interaction.user.tag, inline: true },
+            { name: 'Reason', value: reason, inline: false }
+          )
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (error) {
+        console.error('Add role error:', error);
+        await interaction.editReply({ content: `❌ Failed to add role! Error: ${error.message}` });
+      }
     }
-  }
 
-  // ============================================
-  // ROLE MANAGEMENT COMMANDS
-  // ============================================
+    // REPLACE COMMAND removerole dengan ini:
+    if (commandName === 'removerole') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
 
-  if (commandName === 'addrole') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
-      return;
+      const user = interaction.options.getUser('user');
+      const role = interaction.options.getRole('role');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+
+      await interaction.deferReply();
+
+      try {
+        // Fetch member with force
+        let member;
+        try {
+          member = await interaction.guild.members.fetch({ user: user.id, force: true });
+        } catch (fetchError) {
+          await interaction.editReply({ content: '❌ User is not a member of this server!' });
+          return;
+        }
+
+        // Check bot permissions
+        const botMember = interaction.guild.members.me;
+        if (role.position >= botMember.roles.highest.position) {
+          await interaction.editReply({ content: '❌ I cannot manage this role! My highest role must be above this role.' });
+          return;
+        }
+
+        // Check user permissions
+        if (role.position >= interaction.member.roles.highest.position) {
+          await interaction.editReply({ content: '❌ You cannot manage this role! Your highest role must be above this role.' });
+          return;
+        }
+
+        // Check if member has the role
+        if (!member.roles.cache.has(role.id)) {
+          await interaction.editReply({ content: `❌ ${user.tag} doesn't have the ${role.name} role!` });
+          return;
+        }
+
+        // Remove the role
+        await member.roles.remove(role, reason);
+
+        const embed = new EmbedBuilder()
+          .setColor('#FF0000')
+          .setTitle('✅ Role Removed')
+          .addFields(
+            { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
+            { name: 'Role', value: role.name, inline: true },
+            { name: 'Moderator', value: interaction.user.tag, inline: true },
+            { name: 'Reason', value: reason, inline: false }
+          )
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (error) {
+        console.error('Remove role error:', error);
+        await interaction.editReply({ content: `❌ Failed to remove role! Error: ${error.message}` });
+      }
     }
 
-    const user = interaction.options.getUser('user');
-    const role = interaction.options.getRole('role');
-    const reason = interaction.options.getString('reason') || 'No reason provided';
+    if (commandName === 'createrole') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
 
-    try {
-      const member = await interaction.guild.members.fetch(user.id);
+      const name = interaction.options.getString('name');
+      const color = interaction.options.getString('color') || '#99AAB5';
+      const hoist = interaction.options.getBoolean('hoist') || false;
+      const mentionable = interaction.options.getBoolean('mentionable') || false;
+
+      try {
+        const role = await interaction.guild.roles.create({
+          name: name,
+          color: color,
+          hoist: hoist,
+          mentionable: mentionable,
+          reason: `Created by ${interaction.user.tag}`
+        });
+
+        const embed = new EmbedBuilder()
+          .setColor(role.hexColor)
+          .setTitle('✅ Role Created')
+          .addFields(
+            { name: 'Role Name', value: role.name, inline: true },
+            { name: 'Color', value: role.hexColor, inline: true },
+            { name: 'Hoisted', value: hoist ? 'Yes' : 'No', inline: true },
+            { name: 'Mentionable', value: mentionable ? 'Yes' : 'No', inline: true }
+          )
+          .setTimestamp();
+
+        await interaction.reply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to create role!', ephemeral: true });
+      }
+    }
+
+    if (commandName === 'deleterole') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
+
+      const role = interaction.options.getRole('role');
 
       if (role.position >= interaction.member.roles.highest.position) {
-        await interaction.reply({ content: '❌ You cannot manage this role!', ephemeral: true });
+        await interaction.reply({ content: '❌ You cannot delete this role!', ephemeral: true });
         return;
       }
 
-      await member.roles.add(role, reason);
+      try {
+        await role.delete(`Deleted by ${interaction.user.tag}`);
 
-      const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Role Added')
-        .addFields(
-          { name: 'User', value: user.tag, inline: true },
-          { name: 'Role', value: role.name, inline: true },
-          { name: 'Moderator', value: interaction.user.tag, inline: true },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+        const embed = new EmbedBuilder()
+          .setColor('#FF0000')
+          .setTitle('✅ Role Deleted')
+          .setDescription(`Role **${role.name}** has been deleted.`)
+          .setTimestamp();
 
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to add role!', ephemeral: true });
-    }
-  }
-
-  if (commandName === 'removerole') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
-      return;
+        await interaction.reply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to delete role!', ephemeral: true });
+      }
     }
 
-    const user = interaction.options.getUser('user');
-    const role = interaction.options.getRole('role');
-    const reason = interaction.options.getString('reason') || 'No reason provided';
+    // ============================================
+    // WELCOME & GOODBYE SYSTEM COMMANDS
+    // ============================================
 
-    try {
-      const member = await interaction.guild.members.fetch(user.id);
-
-      if (role.position >= interaction.member.roles.highest.position) {
-        await interaction.reply({ content: '❌ You cannot manage this role!', ephemeral: true });
+    if (commandName === 'setwelcome') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
         return;
       }
 
-      await member.roles.remove(role, reason);
+      await interaction.deferReply();
 
-      const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle('✅ Role Removed')
-        .addFields(
-          { name: 'User', value: user.tag, inline: true },
-          { name: 'Role', value: role.name, inline: true },
-          { name: 'Moderator', value: interaction.user.tag, inline: true },
-          { name: 'Reason', value: reason, inline: false }
-        )
-        .setTimestamp();
+      const channel = interaction.options.getChannel('channel');
+      const message = interaction.options.getString('message') || 'Welcome {user} to {server}!';
 
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to remove role!', ephemeral: true });
+      try {
+        const success = await updateGuildSettings(interaction.guild.id, {
+          welcome_channel: channel.id,
+          welcome_message: message
+        });
+
+        if (!success) {
+          await interaction.editReply({ content: '❌ Failed to save welcome settings to database!' });
+          return;
+        }
+
+        const settings = await getGuildSettings(interaction.guild.id);
+        console.log('Saved settings verification:', settings);
+
+        const embed = new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('✅ Welcome System Configured')
+          .addFields(
+            { name: 'Channel', value: `<#${channel.id}>`, inline: true },
+            { name: 'Message', value: message, inline: false }
+          )
+          .setFooter({ text: 'Use /testwelcome to preview' })
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (error) {
+        console.error('Set welcome error:', error);
+        await interaction.editReply({ content: '❌ An error occurred while configuring welcome system!' });
+      }
     }
-  }
 
-  if (commandName === 'createrole') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
-      return;
+
+    if (commandName === 'removewelcome') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
+
+      await updateGuildSettings(interaction.guild.id, {
+        welcome_channel: null,
+        welcome_message: null
+      });
+
+      await interaction.reply({ content: '✅ Welcome system has been disabled!', ephemeral: true });
+    }
+    if (commandName === 'testwelcome') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      try {
+        const settings = await getGuildSettings(interaction.guild.id);
+        console.log('Welcome settings:', settings);
+
+        if (!settings || !settings.welcome_channel || !settings.welcome_message) {
+          await interaction.editReply({ content: '❌ Welcome system is not configured! Use /setwelcome first.' });
+          return;
+        }
+
+        const message = settings.welcome_message
+          .replace('{user}', `<@${interaction.user.id}>`)
+          .replace('{username}', interaction.user.username)
+          .replace('{server}', interaction.guild.name);
+
+        const embed = new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('👋 Welcome! (Test)')
+          .setDescription(message)
+          .setThumbnail(interaction.user.displayAvatarURL({ size: 256 }))
+          .setFooter({ text: 'This is a test preview of the welcome message' })
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (error) {
+        console.error('Test welcome error:', error);
+        await interaction.editReply({ content: '❌ An error occurred while testing welcome message!' });
+      }
     }
 
-    const name = interaction.options.getString('name');
-    const color = interaction.options.getString('color') || '#99AAB5';
-    const hoist = interaction.options.getBoolean('hoist') || false;
-    const mentionable = interaction.options.getBoolean('mentionable') || false;
+    if (commandName === 'setgoodbye') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
 
-    try {
-      const role = await interaction.guild.roles.create({
-        name: name,
-        color: color,
-        hoist: hoist,
-        mentionable: mentionable,
-        reason: `Created by ${interaction.user.tag}`
+      const channel = interaction.options.getChannel('channel');
+      const message = interaction.options.getString('message') || 'Goodbye {username}! Thanks for being part of {server}!';
+
+      await updateGuildSettings(interaction.guild.id, {
+        goodbye_channel: channel.id,
+        goodbye_message: message
       });
 
       const embed = new EmbedBuilder()
-        .setColor(role.hexColor)
-        .setTitle('✅ Role Created')
+        .setColor('#00FF00')
+        .setTitle('✅ Goodbye System Configured')
         .addFields(
-          { name: 'Role Name', value: role.name, inline: true },
-          { name: 'Color', value: role.hexColor, inline: true },
-          { name: 'Hoisted', value: hoist ? 'Yes' : 'No', inline: true },
-          { name: 'Mentionable', value: mentionable ? 'Yes' : 'No', inline: true }
+          { name: 'Channel', value: `<#${channel.id}>`, inline: true },
+          { name: 'Message', value: message, inline: false }
         )
         .setTimestamp();
 
       await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to create role!', ephemeral: true });
-    }
-  }
-
-  if (commandName === 'deleterole') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
-      return;
     }
 
-    const role = interaction.options.getRole('role');
-
-    if (role.position >= interaction.member.roles.highest.position) {
-      await interaction.reply({ content: '❌ You cannot delete this role!', ephemeral: true });
-      return;
-    }
-
-    try {
-      await role.delete(`Deleted by ${interaction.user.tag}`);
-
-      const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle('✅ Role Deleted')
-        .setDescription(`Role **${role.name}** has been deleted.`)
-        .setTimestamp();
-
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to delete role!', ephemeral: true });
-    }
-  }
-
-  // ============================================
-  // WELCOME & GOODBYE SYSTEM COMMANDS
-  // ============================================
-
-  if (commandName === 'setwelcome') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    const channel = interaction.options.getChannel('channel');
-    const message = interaction.options.getString('message') || 'Welcome {user} to {server}!';
-
-    await updateGuildSettings(interaction.guild.id, {
-      welcome_channel: channel.id,
-      welcome_message: message
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Welcome System Configured')
-      .addFields(
-        { name: 'Channel', value: `<#${channel.id}>`, inline: true },
-        { name: 'Message', value: message, inline: false }
-      )
-      .setFooter({ text: 'Use /testwelcome to preview' })
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'removewelcome') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    await updateGuildSettings(interaction.guild.id, {
-      welcome_channel: null,
-      welcome_message: null
-    });
-
-    await interaction.reply({ content: '✅ Welcome system has been disabled!', ephemeral: true });
-  }
-
-  if (commandName === 'testwelcome') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    const settings = await getGuildSettings(interaction.guild.id);
-
-    if (!settings.welcome_channel || !settings.welcome_message) {
-      await interaction.reply({ content: '❌ Welcome system is not configured! Use /setwelcome first.', ephemeral: true });
-      return;
-    }
-
-    const message = settings.welcome_message
-      .replace('{user}', `<@${interaction.user.id}>`)
-      .replace('{username}', interaction.user.username)
-      .replace('{server}', interaction.guild.name);
-
-    const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('👋 Welcome! (Test)')
-      .setDescription(message)
-      .setThumbnail(interaction.user.displayAvatarURL({ size: 256 }))
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'setgoodbye') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    const channel = interaction.options.getChannel('channel');
-    const message = interaction.options.getString('message') || 'Goodbye {username}! Thanks for being part of {server}!';
-
-    await updateGuildSettings(interaction.guild.id, {
-      goodbye_channel: channel.id,
-      goodbye_message: message
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Goodbye System Configured')
-      .addFields(
-        { name: 'Channel', value: `<#${channel.id}>`, inline: true },
-        { name: 'Message', value: message, inline: false }
-      )
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'removegoodbye') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    await updateGuildSettings(interaction.guild.id, {
-      goodbye_channel: null,
-      goodbye_message: null
-    });
-
-    await interaction.reply({ content: '✅ Goodbye system has been disabled!', ephemeral: true });
-  }
-
-  if (commandName === 'autorole') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
-      return;
-    }
-
-    const role = interaction.options.getRole('role');
-
-    await updateGuildSettings(interaction.guild.id, {
-      auto_role: role.id
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Auto Role Configured')
-      .setDescription(`New members will automatically receive the ${role} role.`)
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'removeautorole') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
-      return;
-    }
-
-    await updateGuildSettings(interaction.guild.id, {
-      auto_role: null
-    });
-
-    await interaction.reply({ content: '✅ Auto role has been disabled!', ephemeral: true });
-  }
-
-  // ============================================
-  // LOGGING COMMANDS
-  // ============================================
-
-  if (commandName === 'setlog') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    const channel = interaction.options.getChannel('channel');
-
-    await updateGuildSettings(interaction.guild.id, {
-      log_channel: channel.id
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Logging Channel Set')
-      .setDescription(`Moderation logs will be sent to <#${channel.id}>`)
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'removelog') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
-      return;
-    }
-
-    await updateGuildSettings(interaction.guild.id, {
-      log_channel: null
-    });
-
-    await interaction.reply({ content: '✅ Logging has been disabled!', ephemeral: true });
-  }
-
-  // ============================================
-  // ADDITIONAL MODERATION COMMANDS
-  // ============================================
-
-  if (commandName === 'nickname') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to manage nicknames!', ephemeral: true });
-      return;
-    }
-
-    const user = interaction.options.getUser('user');
-    const nickname = interaction.options.getString('nickname');
-
-    try {
-      const member = await interaction.guild.members.fetch(user.id);
-      await member.setNickname(nickname);
-
-      const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Nickname Changed')
-        .setDescription(`${user.tag}'s nickname has been ${nickname ? `changed to **${nickname}**` : 'reset'}.`)
-        .setTimestamp();
-
-      await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to change nickname!', ephemeral: true });
-    }
-  }
-
-  if (commandName === 'announce') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to send announcements!', ephemeral: true });
-      return;
-    }
-
-    const channel = interaction.options.getChannel('channel');
-    const message = interaction.options.getString('message');
-    const pingEveryone = interaction.options.getBoolean('ping_everyone') || false;
-
-    const embed = new EmbedBuilder()
-      .setColor('#FFD700')
-      .setTitle('📢 Announcement')
-      .setDescription(message)
-      .setFooter({ text: `Announced by ${interaction.user.tag}` })
-      .setTimestamp();
-
-    try {
-      await channel.send({
-        content: pingEveryone ? '@everyone' : null,
-        embeds: [embed]
-      });
-
-      await interaction.reply({ content: `✅ Announcement sent to <#${channel.id}>!`, ephemeral: true });
-    } catch (error) {
-      await interaction.reply({ content: '❌ Failed to send announcement!', ephemeral: true });
-    }
-  }
-
-  if (commandName === 'modstats') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to view mod stats!', ephemeral: true });
-      return;
-    }
-
-    await interaction.deferReply();
-
-    const logs = await getModStats(interaction.guild.id);
-
-    const stats = {};
-    logs.forEach(log => {
-      if (!stats[log.action]) stats[log.action] = 0;
-      stats[log.action]++;
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor('#5865F2')
-      .setTitle('📊 Moderation Statistics')
-      .setDescription(
-        Object.entries(stats).length > 0
-          ? Object.entries(stats).map(([action, count]) => `**${action}:** ${count}`).join('\n')
-          : 'No moderation actions recorded.'
-      )
-      .setFooter({ text: `Total actions: ${logs.length}` })
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
-  }
-
-  if (commandName === 'bans') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: '❌ You don\'t have permission to view bans!', ephemeral: true });
-      return;
-    }
-
-    await interaction.deferReply();
-
-    try {
-      const bans = await interaction.guild.bans.fetch();
-
-      if (bans.size === 0) {
-        await interaction.editReply({ content: 'No banned users found!' });
+    if (commandName === 'removegoodbye') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
         return;
       }
 
-      const banList = bans.map((ban, index) =>
-        `${index + 1}. ${ban.user.tag} (${ban.user.id})\n   Reason: ${ban.reason || 'No reason provided'}`
-      ).join('\n\n');
+      await updateGuildSettings(interaction.guild.id, {
+        goodbye_channel: null,
+        goodbye_message: null
+      });
+
+      await interaction.reply({ content: '✅ Goodbye system has been disabled!', ephemeral: true });
+    }
+
+    if (commandName === 'autorole') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
+
+      const role = interaction.options.getRole('role');
+
+      await updateGuildSettings(interaction.guild.id, {
+        auto_role: role.id
+      });
 
       const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle(`🔨 Banned Users (${bans.size})`)
-        .setDescription(banList.substring(0, 4096))
+        .setColor('#00FF00')
+        .setTitle('✅ Auto Role Configured')
+        .setDescription(`New members will automatically receive the ${role} role.`)
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === 'removeautorole') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
+
+      await updateGuildSettings(interaction.guild.id, {
+        auto_role: null
+      });
+
+      await interaction.reply({ content: '✅ Auto role has been disabled!', ephemeral: true });
+    }
+
+    // ============================================
+    // LOGGING COMMANDS
+    // ============================================
+
+    if (commandName === 'setlog') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
+
+      const channel = interaction.options.getChannel('channel');
+
+      await updateGuildSettings(interaction.guild.id, {
+        log_channel: channel.id
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ Logging Channel Set')
+        .setDescription(`Moderation logs will be sent to <#${channel.id}>`)
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === 'removelog') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
+
+      await updateGuildSettings(interaction.guild.id, {
+        log_channel: null
+      });
+
+      await interaction.reply({ content: '✅ Logging has been disabled!', ephemeral: true });
+    }
+
+    // ============================================
+    // ADDITIONAL MODERATION COMMANDS
+    // ============================================
+
+    if (commandName === 'nickname') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage nicknames!', ephemeral: true });
+        return;
+      }
+
+      const user = interaction.options.getUser('user');
+      const nickname = interaction.options.getString('nickname');
+
+      try {
+        const member = await interaction.guild.members.fetch(user.id);
+        await member.setNickname(nickname);
+
+        const embed = new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('✅ Nickname Changed')
+          .setDescription(`${user.tag}'s nickname has been ${nickname ? `changed to **${nickname}**` : 'reset'}.`)
+          .setTimestamp();
+
+        await interaction.reply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to change nickname!', ephemeral: true });
+      }
+    }
+
+    if (commandName === 'announce') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to send announcements!', ephemeral: true });
+        return;
+      }
+
+      const channel = interaction.options.getChannel('channel');
+      const message = interaction.options.getString('message');
+      const pingEveryone = interaction.options.getBoolean('ping_everyone') || false;
+
+      const embed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle('📢 Announcement')
+        .setDescription(message)
+        .setFooter({ text: `Announced by ${interaction.user.tag}` })
+        .setTimestamp();
+
+      try {
+        await channel.send({
+          content: pingEveryone ? '@everyone' : null,
+          embeds: [embed]
+        });
+
+        await interaction.reply({ content: `✅ Announcement sent to <#${channel.id}>!`, ephemeral: true });
+      } catch (error) {
+        await interaction.reply({ content: '❌ Failed to send announcement!', ephemeral: true });
+      }
+    }
+
+    if (commandName === 'modstats') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to view mod stats!', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      const logs = await getModStats(interaction.guild.id);
+
+      const stats = {};
+      logs.forEach(log => {
+        if (!stats[log.action]) stats[log.action] = 0;
+        stats[log.action]++;
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setTitle('📊 Moderation Statistics')
+        .setDescription(
+          Object.entries(stats).length > 0
+            ? Object.entries(stats).map(([action, count]) => `**${action}:** ${count}`).join('\n')
+            : 'No moderation actions recorded.'
+        )
+        .setFooter({ text: `Total actions: ${logs.length}` })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
-    } catch (error) {
-      await interaction.editReply({ content: '❌ Failed to fetch ban list!' });
+    }
+
+    if (commandName === 'bans') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to view bans!', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      try {
+        const bans = await interaction.guild.bans.fetch();
+
+        if (bans.size === 0) {
+          await interaction.editReply({ content: 'No banned users found!' });
+          return;
+        }
+
+        const banList = bans.map((ban, index) =>
+          `${index + 1}. ${ban.user.tag} (${ban.user.id})\n   Reason: ${ban.reason || 'No reason provided'}`
+        ).join('\n\n');
+
+        const embed = new EmbedBuilder()
+          .setColor('#FF0000')
+          .setTitle(`🔨 Banned Users (${bans.size})`)
+          .setDescription(banList.substring(0, 4096))
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (error) {
+        await interaction.editReply({ content: '❌ Failed to fetch ban list!' });
+      }
+    }
+  } catch (error) {
+    console.error('Error handling command:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ An error occurred while executing this command!', ephemeral: true });
+    } else if (interaction.deferred) {
+      await interaction.editReply({ content: '❌ An error occurred while executing this command!' });
     }
   }
-} catch (error) {
-  console.error('Error handling command:', error);
-  if (!interaction.replied && !interaction.deferred) {
-    await interaction.reply({ content: '❌ An error occurred while executing this command!', ephemeral: true });
-  } else if (interaction.deferred) {
-    await interaction.editReply({ content: '❌ An error occurred while executing this command!' });
-  }
-}
 });
 // AFK system message handler
 client.on('messageCreate', async (message) => {
