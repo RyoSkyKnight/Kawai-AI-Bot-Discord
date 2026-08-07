@@ -902,6 +902,79 @@ const commands = [
     name: 'bans',
     description: 'List all banned users',
     default_member_permissions: PermissionFlagsBits.BanMembers.toString()
+  },
+  {
+    name: 'setautomute',
+    description: 'Set up automatic muting for spammers',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString(),
+    options: [
+      {
+        name: 'threshold',
+        type: 4,
+        description: 'Number of messages in a short time to trigger mute',
+        required: true
+      },
+      {
+        name: 'duration',
+        type: 3,
+        description: 'Duration to mute the user (e.g. 10m, 1h)',
+        required: true
+      }
+    ]
+  },
+  {
+    name: 'removeautomute',
+    description: 'Remove automatic muting for spammers',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString()
+  },
+  {
+    name: 'setbadwordmute',
+    description: 'Set up automatic muting for bad language',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString(),
+    options: [
+      {
+        name: 'duration',
+        type: 3,
+        description: 'Duration to mute the user (e.g. 10m, 1h)',
+        required: true
+      }
+    ]
+  },
+  {
+    name: 'removebadwordmute',
+    description: 'Remove automatic muting for bad language',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString()
+  },
+  {
+    name: 'listbadwords',
+    description: 'List all bad words',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString()
+  },
+  {
+    name: 'addbadword',
+    description: 'Add a bad word to the list',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString(),
+    options: [
+      {
+        name: 'word',
+        type: 3,
+        description: 'The bad word to add',
+        required: true
+      }
+    ]
+  },
+  {
+    name: 'removebadword',
+    description: 'Remove a bad word from the list',
+    default_member_permissions: PermissionFlagsBits.ModerateMembers.toString(),
+    options: [
+      {
+        name: 'word',
+        type: 3,
+        description: 'The bad word to remove',
+        required: true
+      }
+    ]
   }
 ];
 

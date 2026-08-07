@@ -29,6 +29,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 let isProcessing = false;
 const startTime = Date.now();
 const afkUsers = new Map(); // Temporary storage for AFK (doesn't need persistence)
+const spamTracking = new Map();
+const pastelColors = ['#FFB6E1', '#B4E7FF', '#D4B5FF', '#FFE5B4', '#B4FFB4', '#FFD4E5', '#E0BBE4'];
+const randomColor = pastelColors[Math.floor(Math.random() * pastelColors.length)];
 
 // Database helper functions
 async function getGuildSettings(guildId) {
@@ -157,6 +160,131 @@ async function getModStats(guildId) {
   return data || [];
 }
 
+async function getAutoMuteSettings(guildId) {
+  try {
+    const { data, error } = await supabase
+      .from('auto_mute_settings')
+      .select('*')
+      .eq('guild_id', guildId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching auto-mute settings:', error);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error('Exception in getAutoMuteSettings:', err);
+    return null;
+  }
+}
+
+async function updateAutoMuteSettings(guildId, settings) {
+  try {
+    const { data, error } = await supabase
+      .from('auto_mute_settings')
+      .upsert({
+        guild_id: guildId,
+        ...settings,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'guild_id'
+      })
+      .select();
+
+    if (error) {
+      console.error('Error updating auto-mute settings:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Exception in updateAutoMuteSettings:', err);
+    return false;
+  }
+}
+
+// Bad words functions
+async function getBadWords(guildId) {
+  try {
+    const { data, error } = await supabase
+      .from('bad_words')
+      .select('*')
+      .eq('guild_id', guildId)
+      .order('word', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching bad words:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('Exception in getBadWords:', err);
+    return [];
+  }
+}
+
+async function addBadWord(guildId, word, addedBy) {
+  try {
+    const { data, error } = await supabase
+      .from('bad_words')
+      .insert({
+        guild_id: guildId,
+        word: word.toLowerCase(),
+        added_by: addedBy
+      })
+      .select();
+
+    if (error) {
+      if (error.code === '23505') { // Duplicate key
+        return { success: false, error: 'Word already exists' };
+      }
+      console.error('Error adding bad word:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('Exception in addBadWord:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+async function removeBadWord(guildId, word) {
+  try {
+    const { data, error } = await supabase
+      .from('bad_words')
+      .delete()
+      .eq('guild_id', guildId)
+      .eq('word', word.toLowerCase())
+      .select();
+
+    if (error) {
+      console.error('Error removing bad word:', error);
+      return false;
+    }
+
+    return data && data.length > 0;
+  } catch (err) {
+    console.error('Exception in removeBadWord:', err);
+    return false;
+  }
+}
+
+// Check if message contains bad words
+function containsBadWords(message, badWords) {
+  const lowerMessage = message.toLowerCase();
+  return badWords.some(bw => {
+    const word = bw.word.toLowerCase();
+    // Check for exact word match with word boundaries
+    const regex = new RegExp(`\\b${word}\\b`, 'i');
+    return regex.test(lowerMessage);
+  });
+}
+
+
 // Inspirational quotes
 const quotes = [
   { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
@@ -230,7 +358,7 @@ client.on('guildMemberAdd', async (member) => {
           .replace('{server}', member.guild.name);
 
         const embed = new EmbedBuilder()
-          .setColor('#00FF00')
+          .setColor(randomColor)
           .setTitle('👋 Welcome!')
           .setDescription(message)
           .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
@@ -290,6 +418,7 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName } = interaction;
+  const botMember = interaction.guild.members.me;
 
   try {
     // ============================================
@@ -297,6 +426,8 @@ client.on('interactionCreate', async (interaction) => {
     // ============================================
 
     if (commandName === 'help') {
+      await interaction.deferReply();
+
       const helpEmbed = new EmbedBuilder()
         .setColor('#FFD700')
         .setTitle('📚 Bot Commands Help')
@@ -308,7 +439,8 @@ client.on('interactionCreate', async (interaction) => {
           { name: '🎬 Media', value: '`/movie` `/anime` `/gif` `/dog` `/cat` `/crypto`', inline: false },
           { name: '👥 User Info', value: '`/userinfo` `/roleinfo` `/roles`', inline: false },
           { name: '💬 Social', value: '`/poll` `/embed` `/afk` `/remind`', inline: false },
-          { name: '🛡️ Moderation', value: '`/ban` `/unban` `/kick` `/timeout` `/warn` `/clear` `/lock` `/unlock` `/slowmode`', inline: false },
+          { name: '🛡️ Moderation', value: '`/ban` `/unban` `/kick` `/timeout` `/warn` `/clear` `/lock` `/unlock` `/slowmode` `/setautomute` `/setbadwordmute`', inline: false },
+          { name: '🔇 Auto-Mute', value: '`/setautomute` `/removeautomute` `/setbadwordmute` `/removebadwordmute` `/addbadword` `/removebadword` `/listbadwords`', inline: false },
           { name: '🎭 Roles', value: '`/addrole` `/removerole` `/createrole` `/deleterole`', inline: false },
           { name: '⚙️ Server Setup', value: '`/setwelcome` `/setgoodbye` `/autorole` `/setlog`', inline: false }
         )
@@ -321,13 +453,14 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'ask') {
       const prompt = interaction.options.getString('question');
 
+      await interaction.deferReply();
+
       if (isProcessing) {
         await interaction.editReply({ content: '⏳ The bot is processing another request, please wait.', ephemeral: true });
         return;
       }
 
       isProcessing = true;
-      await interaction.deferReply();
 
       try {
         let creatorMention = `<@${CREATOR_ID}>`;
@@ -368,9 +501,6 @@ client.on('interactionCreate', async (interaction) => {
 
         let reply = buffer.join('');
         reply = reply.replace(new RegExp(creatorName, 'gi'), creatorMention);
-
-        const pastelColors = ['#FFB6E1', '#B4E7FF', '#D4B5FF', '#FFE5B4', '#B4FFB4', '#FFD4E5', '#E0BBE4'];
-        const randomColor = pastelColors[Math.floor(Math.random() * pastelColors.length)];
 
         const responseEmbed = new EmbedBuilder()
           .setColor(randomColor)
@@ -928,12 +1058,12 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'ascii') {
       const text = interaction.options.getString('text');
 
+      await interaction.deferReply();
+
       if (text.length > 15) {
-        await interaction.editReply({ content: '❌ Text too long! Please use 15 characters or less.', ephemeral: true });
+        await interaction.editReply({ content: '❌ Text too long! Please use 15 characters or less.' });
         return;
       }
-
-      await interaction.deferReply();
 
       figlet(text, (err, data) => {
         if (err) {
@@ -944,6 +1074,7 @@ client.on('interactionCreate', async (interaction) => {
         interaction.editReply({ content: `\`\`\`${data}\`\`\`` });
       });
     }
+
 
     if (commandName === 'embed') {
       const title = interaction.options.getString('title');
@@ -1250,6 +1381,18 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers || PermissionFlagsBits.BanMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or BanMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot ban ${member.user.tag} - role hierarchy`);
+        return;
+      }
+
+
       const user = interaction.options.getUser('user');
       const reason = interaction.options.getString('reason') || 'No reason provided';
       const deleteDays = interaction.options.getInteger('delete_messages') || 0;
@@ -1288,6 +1431,18 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers || PermissionFlagsBits.BanMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or UnbanMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot unban ${member.user.tag} - role hierarchy`);
+        return;
+      }
+
+
       const userId = interaction.options.getString('user_id');
       const reason = interaction.options.getString('reason') || 'No reason provided';
 
@@ -1315,6 +1470,17 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'kick') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) {
         await interaction.reply({ content: '❌ You don\'t have permission to kick members!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers || PermissionFlagsBits.KickMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or KickMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot kick ${member.user.tag} - role hierarchy`);
         return;
       }
 
@@ -1352,6 +1518,17 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'timeout') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
         await interaction.reply({ content: '❌ You don\'t have permission to timeout members!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers || PermissionFlagsBits.MuteMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or MuteMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot timeout ${member.user.tag} - role hierarchy`);
         return;
       }
 
@@ -1400,6 +1577,17 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers || PermissionFlagsBits.MuteMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or unMuteMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot untimeout ${member.user.tag} - role hierarchy`);
+        return;
+      }
+
       const user = interaction.options.getUser('user');
       const reason = interaction.options.getString('reason') || 'No reason provided';
 
@@ -1426,6 +1614,18 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'warn') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
         await interaction.reply({ content: '❌ You don\'t have permission to warn members!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or warn permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot warn ${member.user.tag} - role hierarchy`);
         return;
       }
 
@@ -1463,6 +1663,12 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers or warn permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
       const user = interaction.options.getUser('user');
       const warnings = await getWarnings(interaction.guild.id, user.id);
 
@@ -1488,78 +1694,23 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '❌ You need Administrator permission to clear warnings!', ephemeral: true });
         return;
       }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.Administrator)) {
+        console.log(`⚠️ Missing Administrator permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing Administrator permission!', ephemeral: true });
+        return;
+      }
+
       const user = interaction.options.getUser('user');
-      await clearWarnings(interaction.guild.id, user.id); const embed = new EmbedBuilder()
+
+      await clearWarnings(interaction.guild.id, user.id);
+      const embed = new EmbedBuilder()
         .setColor('#00FF00')
         .setTitle('✅ Warnings Cleared')
         .setDescription(`All warnings for ${user.tag} have been cleared.`)
         .setFooter({ text: `Cleared by ${interaction.user.tag}` })
-        .setTimestamp(); await interaction.reply({ embeds: [embed] });
-    } if (commandName === 'clear') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-        await interaction.reply({ content: '❌ You don\'t have permission to manage messages!', ephemeral: true });
-        return;
-      } const amount = interaction.options.getInteger('amount');
-      const targetUser = interaction.options.getUser('user'); if (amount < 1 || amount > 100) {
-        await interaction.reply({ content: '❌ Please provide a number between 1 and 100!', ephemeral: true });
-        return;
-      } await interaction.deferReply({ ephemeral: true }); try {
-        const messages = await interaction.channel.messages.fetch({ limit: amount });
-        const filteredMessages = targetUser
-          ? messages.filter(msg => msg.author.id === targetUser.id)
-          : messages; const deleted = await interaction.channel.bulkDelete(filteredMessages, true); await interaction.editReply({ content: `✅ Deleted ${deleted.size} messages!` });
-      } catch (error) {
-        await interaction.editReply({ content: '❌ Failed to delete messages!' });
-      }
-    }
-    if (commandName === 'slowmode') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
-        return;
-      } const duration = interaction.options.getInteger('duration'); if (duration < 0 || duration > 21600) {
-        await interaction.reply({ content: '❌ Duration must be between 0 and 21600 seconds (6 hours)!', ephemeral: true });
-        return;
-      } try {
-        await interaction.channel.setRateLimitPerUser(duration); const embed = new EmbedBuilder()
-          .setColor(duration === 0 ? '#00FF00' : '#FFA500')
-          .setTitle(duration === 0 ? '✅ Slowmode Disabled' : '⏰ Slowmode Enabled')
-          .setDescription(duration === 0 ? 'Slowmode has been disabled.' : `Slowmode set to ${duration} seconds.`)
-          .setTimestamp(); await interaction.reply({ embeds: [embed] });
-      } catch (error) {
-        await interaction.reply({ content: '❌ Failed to set slowmode!', ephemeral: true });
-      }
-    } if (commandName === 'lock') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
-        return;
-      } const reason = interaction.options.getString('reason') || 'No reason provided'; try {
-        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-          SendMessages: false
-        }); const embed = new EmbedBuilder()
-          .setColor('#FF0000')
-          .setTitle('🔒 Channel Locked')
-          .setDescription(`This channel has been locked.\n**Reason:** ${reason}`)
-          .setFooter({ text: `Locked by ${interaction.user.tag}` })
-          .setTimestamp(); await interaction.reply({ embeds: [embed] });
-      } catch (error) {
-        await interaction.reply({ content: '❌ Failed to lock channel!', ephemeral: true });
-      }
-    } if (commandName === 'unlock') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        await interaction.reply({ content: '❌ You don\'t have permission to manage channels!', ephemeral: true });
-        return;
-      } const reason = interaction.options.getString('reason') || 'No reason provided'; try {
-        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-          SendMessages: null
-        }); const embed = new EmbedBuilder()
-          .setColor('#00FF00')
-          .setTitle('🔓 Channel Unlocked')
-          .setDescription(`This channel has been unlocked.\n**Reason:** ${reason}`)
-          .setFooter({ text: `Unlocked by ${interaction.user.tag}` })
-          .setTimestamp(); await interaction.reply({ embeds: [embed] });
-      } catch (error) {
-        await interaction.reply({ content: '❌ Failed to unlock channel!', ephemeral: true });
-      }
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
     }
 
     if (commandName === 'clear') {
@@ -1568,24 +1719,25 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        console.log(`⚠️ Missing ManageMessages permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageMessages permission!', ephemeral: true });
+        return;
+      }
+
       const amount = interaction.options.getInteger('amount');
       const targetUser = interaction.options.getUser('user');
-
       if (amount < 1 || amount > 100) {
         await interaction.reply({ content: '❌ Please provide a number between 1 and 100!', ephemeral: true });
         return;
       }
-
       await interaction.deferReply({ ephemeral: true });
-
       try {
         const messages = await interaction.channel.messages.fetch({ limit: amount });
         const filteredMessages = targetUser
           ? messages.filter(msg => msg.author.id === targetUser.id)
           : messages;
-
         const deleted = await interaction.channel.bulkDelete(filteredMessages, true);
-
         await interaction.editReply({ content: `✅ Deleted ${deleted.size} messages!` });
       } catch (error) {
         await interaction.editReply({ content: '❌ Failed to delete messages!' });
@@ -1598,22 +1750,25 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        console.log(`⚠️ Missing ManageChannels permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageChannels permission!', ephemeral: true });
+        return;
+      }
+
       const duration = interaction.options.getInteger('duration');
 
       if (duration < 0 || duration > 21600) {
         await interaction.reply({ content: '❌ Duration must be between 0 and 21600 seconds (6 hours)!', ephemeral: true });
         return;
       }
-
       try {
         await interaction.channel.setRateLimitPerUser(duration);
-
         const embed = new EmbedBuilder()
           .setColor(duration === 0 ? '#00FF00' : '#FFA500')
           .setTitle(duration === 0 ? '✅ Slowmode Disabled' : '⏰ Slowmode Enabled')
           .setDescription(duration === 0 ? 'Slowmode has been disabled.' : `Slowmode set to ${duration} seconds.`)
           .setTimestamp();
-
         await interaction.reply({ embeds: [embed] });
       } catch (error) {
         await interaction.reply({ content: '❌ Failed to set slowmode!', ephemeral: true });
@@ -1626,25 +1781,29 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        console.log(`⚠️ Missing ManageChannels permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageChannels permission!', ephemeral: true });
+        return;
+      }
 
+      const reason = interaction.options.getString('reason') || 'No reason provided';
       try {
         await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
           SendMessages: false
         });
-
         const embed = new EmbedBuilder()
           .setColor('#FF0000')
           .setTitle('🔒 Channel Locked')
           .setDescription(`This channel has been locked.\n**Reason:** ${reason}`)
           .setFooter({ text: `Locked by ${interaction.user.tag}` })
           .setTimestamp();
-
         await interaction.reply({ embeds: [embed] });
       } catch (error) {
         await interaction.reply({ content: '❌ Failed to lock channel!', ephemeral: true });
       }
     }
+
 
     if (commandName === 'unlock') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -1652,13 +1811,17 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        console.log(`⚠️ Missing ManageChannels permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageChannels permission!', ephemeral: true });
+        return;
+      }
 
+      const reason = interaction.options.getString('reason') || 'No reason provided';
       try {
         await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
           SendMessages: null
         });
-
         const embed = new EmbedBuilder()
           .setColor('#00FF00')
           .setTitle('🔓 Channel Unlocked')
@@ -1672,12 +1835,19 @@ client.on('interactionCreate', async (interaction) => {
       }
     }
 
+
     // ============================================
     // ROLE MANAGEMENT COMMANDS
     // ============================================
     if (commandName === 'addrole') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
         await interaction.reply({ content: '❌ You don\'t have permission to manage roles!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        console.log(`⚠️ Missing ManageRoles permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageRoles permission!', ephemeral: true });
         return;
       }
 
@@ -1698,7 +1868,6 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         // Check bot permissions
-        const botMember = interaction.guild.members.me;
         if (role.position >= botMember.roles.highest.position) {
           await interaction.editReply({ content: '❌ I cannot manage this role! My highest role must be above this role.' });
           return;
@@ -1744,6 +1913,17 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        console.log(`⚠️ Missing ManageRoles permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageRoles permission!', ephemeral: true });
+        return;
+      }
+
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        console.log(`⚠️ Cannot remove role from ${member.user.tag} - role hierarchy`);
+        return;
+      }
+
       const user = interaction.options.getUser('user');
       const role = interaction.options.getRole('role');
       const reason = interaction.options.getString('reason') || 'No reason provided';
@@ -1761,7 +1941,6 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         // Check bot permissions
-        const botMember = interaction.guild.members.me;
         if (role.position >= botMember.roles.highest.position) {
           await interaction.editReply({ content: '❌ I cannot manage this role! My highest role must be above this role.' });
           return;
@@ -1806,6 +1985,12 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        console.log(`⚠️ Missing ManageRoles permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageRoles permission!', ephemeral: true });
+        return;
+      }
+
       const name = interaction.options.getString('name');
       const color = interaction.options.getString('color') || '#99AAB5';
       const hoist = interaction.options.getBoolean('hoist') || false;
@@ -1843,6 +2028,12 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        console.log(`⚠️ Missing ManageRoles permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageRoles permission!', ephemeral: true });
+        return;
+      }
+
       const role = interaction.options.getRole('role');
 
       if (role.position >= interaction.member.roles.highest.position) {
@@ -1872,6 +2063,12 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'setwelcome') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
         await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        console.log(`⚠️ Missing ManageGuild permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
         return;
       }
 
@@ -1915,6 +2112,12 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'removewelcome') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
         await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        console.log(`⚠️ Missing ManageGuild permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
         return;
       }
 
@@ -1967,6 +2170,13 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
         return;
       }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        console.log(`⚠️ Missing ManageGuild permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+        return;
+      }
+
 
       const channel = interaction.options.getChannel('channel');
       const message = interaction.options.getString('message') || 'Goodbye {username}! Thanks for being part of {server}!';
@@ -2029,6 +2239,13 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        console.log(`⚠️ Missing ManageRoles permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageRoles permission!', ephemeral: true });
+        return;
+      }
+
+
       await updateGuildSettings(interaction.guild.id, {
         auto_role: null
       });
@@ -2045,6 +2262,13 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '❌ You don\'t have permission to manage server!', ephemeral: true });
         return;
       }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        console.log(`⚠️ Missing ManageGuild permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+        return;
+      }
+
 
       const channel = interaction.options.getChannel('channel');
 
@@ -2067,6 +2291,13 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        console.log(`⚠️ Missing ManageGuild permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+        return;
+      }
+
+
       await updateGuildSettings(interaction.guild.id, {
         log_channel: null
       });
@@ -2083,6 +2314,13 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '❌ You don\'t have permission to manage nicknames!', ephemeral: true });
         return;
       }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+        console.log(`⚠️ Missing ManageNicknames permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageNicknames permission!', ephemeral: true });
+        return;
+      }
+
 
       const user = interaction.options.getUser('user');
       const nickname = interaction.options.getString('nickname');
@@ -2108,6 +2346,13 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '❌ You don\'t have permission to send announcements!', ephemeral: true });
         return;
       }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        console.log(`⚠️ Missing ManageMessages permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ManageMessages permission!', ephemeral: true });
+        return;
+      }
+
 
       const channel = interaction.options.getChannel('channel');
       const message = interaction.options.getString('message');
@@ -2137,6 +2382,13 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '❌ You don\'t have permission to view mod stats!', ephemeral: true });
         return;
       }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
 
       await interaction.deferReply();
 
@@ -2168,6 +2420,13 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
+      if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
+        console.log(`⚠️ Missing BanMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing BanMembers permission!', ephemeral: true });
+        return;
+      }
+
+
       await interaction.deferReply();
 
       try {
@@ -2193,6 +2452,278 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply({ content: '❌ Failed to fetch ban list!' });
       }
     }
+
+    // ============================================
+    // AUTO-MUTE & BAD WORD FILTER COMMANDS
+    // ============================================
+
+    if (commandName === 'setautomute') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage auto-mute settings!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      const threshold = interaction.options.getInteger('threshold');
+      const duration = interaction.options.getString('duration');
+
+      // Validate threshold
+      if (threshold < 3 || threshold > 20) {
+        await interaction.reply({ content: '❌ Threshold must be between 3 and 20 messages!', ephemeral: true });
+        return;
+      }
+
+      // Validate duration
+      const ms = parseDuration(duration);
+      if (!ms || ms > 2419200000) {
+        await interaction.reply({ content: '❌ Invalid duration! Maximum is 28 days (28d).', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      const success = await updateAutoMuteSettings(interaction.guild.id, {
+        spam_threshold: threshold,
+        spam_duration: duration
+      });
+
+      if (!success) {
+        await interaction.editReply({ content: '❌ Failed to save auto-mute settings!' });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ Auto-Mute for Spam Enabled')
+        .addFields(
+          { name: 'Spam Threshold', value: `${threshold} messages in 5 seconds`, inline: true },
+          { name: 'Mute Duration', value: duration, inline: true }
+        )
+        .setFooter({ text: 'Users will be automatically muted when they spam' })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === 'removeautomute') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage auto-mute settings!', ephemeral: true });
+        return;
+      }
+
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      await interaction.deferReply();
+
+      const success = await updateAutoMuteSettings(interaction.guild.id, {
+        spam_threshold: null,
+        spam_duration: null
+      });
+
+      if (!success) {
+        await interaction.editReply({ content: '❌ Failed to remove auto-mute settings!' });
+        return;
+      }
+
+      await interaction.editReply({ content: '✅ Auto-mute for spam has been disabled!' });
+    }
+
+    if (commandName === 'setbadwordmute') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage auto-mute settings!', ephemeral: true });
+        return;
+      }
+
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      const duration = interaction.options.getString('duration');
+
+      // Validate duration
+      const ms = parseDuration(duration);
+      if (!ms || ms > 2419200000) {
+        await interaction.reply({ content: '❌ Invalid duration! Maximum is 28 days (28d).', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      const success = await updateAutoMuteSettings(interaction.guild.id, {
+        badword_enabled: true,
+        badword_duration: duration
+      });
+
+      if (!success) {
+        await interaction.editReply({ content: '❌ Failed to save bad word mute settings!' });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ Auto-Mute for Bad Words Enabled')
+        .addFields(
+          { name: 'Mute Duration', value: duration, inline: true }
+        )
+        .setDescription('Users will be automatically muted when they use bad words.\nUse `/addbadword` to add words to the filter.')
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === 'removebadwordmute') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage auto-mute settings!', ephemeral: true });
+        return;
+      }
+
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      await interaction.deferReply();
+
+      const success = await updateAutoMuteSettings(interaction.guild.id, {
+        badword_enabled: false,
+        badword_duration: null
+      });
+
+      if (!success) {
+        await interaction.editReply({ content: '❌ Failed to remove bad word mute settings!' });
+        return;
+      }
+
+      await interaction.editReply({ content: '✅ Auto-mute for bad words has been disabled!' });
+    }
+
+    if (commandName === 'addbadword') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage bad words!', ephemeral: true });
+        return;
+      }
+
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      const word = interaction.options.getString('word');
+
+      if (word.length < 2 || word.length > 50) {
+        await interaction.reply({ content: '❌ Word must be between 2 and 50 characters!', ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply();
+
+      const result = await addBadWord(interaction.guild.id, word, interaction.user.id);
+
+      if (!result.success) {
+        await interaction.editReply({ content: `❌ Failed to add bad word: ${result.error}` });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ Bad Word Added')
+        .setDescription(`The word "**${word}**" has been added to the filter.`)
+        .setFooter({ text: `Added by ${interaction.user.tag}` })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === 'removebadword') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to manage bad words!', ephemeral: true });
+        return;
+      }
+
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      const word = interaction.options.getString('word');
+
+      await interaction.deferReply();
+
+      const success = await removeBadWord(interaction.guild.id, word);
+
+      if (!success) {
+        await interaction.editReply({ content: '❌ Word not found in the filter!' });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('✅ Bad Word Removed')
+        .setDescription(`The word "**${word}**" has been removed from the filter.`)
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    }
+
+    if (commandName === 'listbadwords') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        await interaction.reply({ content: '❌ You don\'t have permission to view bad words!', ephemeral: true });
+        return;
+      }
+
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        console.log(`⚠️ Missing ModerateMembers permission in ${message.guild.name}`);
+        await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+        return;
+      }
+
+
+      await interaction.deferReply({ ephemeral: true });
+
+      const badWords = await getBadWords(interaction.guild.id);
+
+      if (badWords.length === 0) {
+        await interaction.editReply({ content: 'No bad words in the filter. Use `/addbadword` to add some!' });
+        return;
+      }
+
+      const wordList = badWords.map((bw, i) => `${i + 1}. **${bw.word}**`).join('\n');
+
+      const embed = new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('🚫 Bad Words List')
+        .setDescription(wordList.substring(0, 4096))
+        .setFooter({ text: `Total: ${badWords.length} words` })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    }
+
   } catch (error) {
     console.error('Error handling command:', error);
     if (!interaction.replied && !interaction.deferred) {
@@ -2201,19 +2732,24 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.editReply({ content: '❌ An error occurred while executing this command!' });
     }
   }
+
 });
-// AFK system message handler
+// system message handler
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
+  if (!message.guild) return;
+
   // Check if user is returning from AFK
   if (afkUsers.has(message.author.id)) {
     const afkData = afkUsers.get(message.author.id);
     const duration = Date.now() - afkData.time;
     afkUsers.delete(message.author.id);
+
     await message.reply(`Welcome back! You were AFK for ${formatDuration(duration)}.`).then(msg => {
       setTimeout(() => msg.delete().catch(() => { }), 5000);
     });
   }
+
   // Check for mentions of AFK users
   message.mentions.users.forEach(user => {
     if (afkUsers.has(user.id)) {
@@ -2223,5 +2759,127 @@ client.on('messageCreate', async (message) => {
       });
     }
   });
+
+  // Auto-mute system
+  try {
+    const settings = await getAutoMuteSettings(message.guild.id);
+    if (!settings) return;
+
+    const member = message.member;
+    if (!member) return;
+
+    // Skip if user has moderate members permission
+    if (member.permissions.has(PermissionFlagsBits.ModerateMembers)) return;
+
+    // Check spam
+    if (settings.spam_threshold && settings.spam_duration) {
+      const trackingKey = `${message.guild.id}-${message.author.id}`;
+      const now = Date.now();
+      const timeWindow = 5000; // 5 seconds
+
+      if (!spamTracking.has(trackingKey)) {
+        spamTracking.set(trackingKey, {
+          count: 1,
+          firstMessage: now,
+          messages: [now]
+        });
+      } else {
+        const tracking = spamTracking.get(trackingKey);
+
+        // Remove messages outside time window
+        tracking.messages = tracking.messages.filter(t => now - t < timeWindow);
+        tracking.messages.push(now);
+        tracking.count = tracking.messages.length;
+
+        // Check if threshold exceeded
+        if (tracking.count >= settings.spam_threshold) {
+          const duration = parseDuration(settings.spam_duration);
+
+          try {
+            await member.timeout(duration, 'Auto-mute: Spam detected');
+
+            const embed = new EmbedBuilder()
+              .setColor('#FF0000')
+              .setTitle('🔇 User Auto-Muted (Spam)')
+              .addFields(
+                { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
+                { name: 'Duration', value: settings.spam_duration, inline: true },
+                { name: 'Reason', value: `Sent ${tracking.count} messages in 5 seconds`, inline: false }
+              )
+              .setTimestamp();
+
+            await sendLog(message.guild, embed);
+            await logModAction(message.guild.id, 'auto-mute (spam)', client.user.id, message.author.id, 'Spam detected');
+
+            // Clear tracking
+            spamTracking.delete(trackingKey);
+
+            // Delete spam messages
+            const messagesToDelete = await message.channel.messages.fetch({ limit: tracking.count });
+            const userMessages = messagesToDelete.filter(m => m.author.id === message.author.id);
+            await message.channel.bulkDelete(userMessages, true).catch(() => { });
+
+          } catch (error) {
+            console.error('Error muting user for spam:', error);
+          }
+        }
+
+        // Update tracking
+        spamTracking.set(trackingKey, tracking);
+      }
+
+      // Cleanup old tracking data
+      setTimeout(() => {
+        if (spamTracking.has(trackingKey)) {
+          const tracking = spamTracking.get(trackingKey);
+          if (now - tracking.firstMessage > 60000) { // 1 minute
+            spamTracking.delete(trackingKey);
+          }
+        }
+      }, 60000);
+    }
+
+    // Check bad words
+    if (settings.badword_enabled && settings.badword_duration) {
+      const badWords = await getBadWords(message.guild.id);
+
+      if (badWords.length > 0 && containsBadWords(message.content, badWords)) {
+        const duration = parseDuration(settings.badword_duration);
+
+        try {
+          await member.timeout(duration, 'Auto-mute: Bad language detected');
+
+          const embed = new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('🔇 User Auto-Muted (Bad Language)')
+            .addFields(
+              { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
+              { name: 'Duration', value: settings.badword_duration, inline: true },
+              { name: 'Reason', value: 'Used inappropriate language', inline: false }
+            )
+            .setTimestamp();
+
+          await sendLog(message.guild, embed);
+          await logModAction(message.guild.id, 'auto-mute (bad word)', client.user.id, message.author.id, 'Bad language detected');
+
+          // Delete the message
+          await message.delete().catch(() => { });
+
+          // Send warning
+          const warningMsg = await message.channel.send({
+            content: `${message.author}, you have been muted for using inappropriate language.`
+          });
+
+          setTimeout(() => warningMsg.delete().catch(() => { }), 5000);
+
+        } catch (error) {
+          console.error('Error muting user for bad language:', error);
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in auto-mute system:', error);
+  }
 });
 client.login(BOT_TOKEN);
