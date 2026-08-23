@@ -20,4 +20,4 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 EXPOSE 9090
-CMD ["node", "index.cjs"]    
+CMD ["node", "src/index.js"]
