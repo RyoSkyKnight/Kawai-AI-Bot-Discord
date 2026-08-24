@@ -38,10 +38,13 @@ async function chatCompletion({ messages, tools, maxTokens = 1000, temperature =
   }
 
   const data = await res.json();
+  if (data.error) {
+    throw new Error(`OpenRouter error: ${data.error.message || JSON.stringify(data.error)}`);
+  }
   const choice = data.choices?.[0];
 
   if (!choice) {
-    throw new Error('No response returned from OpenRouter.');
+    throw new Error(`No response returned from OpenRouter. Full response: ${JSON.stringify(data)}`);
   }
 
   if (choice.finish_reason === 'content_filter') {
