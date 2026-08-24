@@ -340,8 +340,11 @@ const tools = {
   },
 };
 
-function getToolDefinitions() {
-  return Object.values(tools).map((t) => t.definition);
+function getToolDefinitions(member) {
+  if (!member) return [];
+  return Object.values(tools)
+    .filter((t) => member.permissions.has(t.permission))
+    .map((t) => t.definition);
 }
 
 // Every tool call is re-validated here against the *actual* invoking member's

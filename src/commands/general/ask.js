@@ -51,10 +51,11 @@ module.exports = {
       }
 
       // Tools are only offered inside a server (moderation actions make no sense in DMs).
-      const tools = interaction.guild ? getToolDefinitions() : [];
+      const tools = interaction.guild ? getToolDefinitions(interaction.member) : [];
 
-      const toolsNote = interaction.guild
-        ? `\n\nYou also have access to moderation tools for this Discord server (warn_user, timeout_user, kick_user, ban_user, get_warnings, clear_warnings, get_mod_stats). Only call a tool if the user clearly asks you to take that action — never call one speculatively. Every tool call is independently permission-checked server-side against the requesting user's real Discord permissions and role hierarchy, so if they lack permission the tool will refuse; when that happens, relay the refusal honestly and never claim an action succeeded if the tool result says it didn't. To target a user, use the numeric Discord ID from a mention like <@123456789012345678>; if the user didn't @mention anyone, ask them to before assuming who they mean.`
+      const toolsListStr = tools.map((t) => t.function.name).join(', ');
+      const toolsNote = tools.length > 0
+        ? `\n\nYou also have access to moderation tools for this Discord server (${toolsListStr}). Only call a tool if the user clearly asks you to take that action — never call one speculatively. Every tool call is independently permission-checked server-side against the requesting user's real Discord permissions and role hierarchy, so if they lack permission the tool will refuse; when that happens, relay the refusal honestly and never claim an action succeeded if the tool result says it didn't. To target a user, use the numeric Discord ID from a mention like <@123456789012345678>; if the user didn't @mention anyone, ask them to before assuming who they mean.`
         : '';
 
       const systemInstruction = (USE_SHORT_RESPONSE
