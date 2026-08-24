@@ -1,6 +1,8 @@
+
 const { EmbedBuilder } = require('discord.js');
 const { chatCompletion } = require('../../services/aiClient');
 const { getToolDefinitions, runTool } = require('../../services/aiTools');
+const { getHistory, pushHistory } = require('../../services/conversationHistory');
 const state = require('../../state');
 const { CREATOR_ID, USE_SHORT_RESPONSE } = require('../../config');
 const { randomColor } = require('../../utils/constants');
@@ -62,12 +64,12 @@ module.exports = {
         Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}.`
       ) + toolsNote;
 
-      // Per-user session memory: remember recent turns for this user only.
-      state.pushHistory(userId, 'user', prompt);
+      // Per-user session memory, persisted in Supabase: remember recent turns for this user only.
+      await pushHistory(userId, 'user', prompt);
 
       const messages = [
         { role: 'system', content: systemInstruction },
-        ...state.getHistory(userId),
+        ...(await getHistory(userId)),
       ];
 
       let finalText = '';
@@ -113,7 +115,7 @@ module.exports = {
       }
 
       finalText = finalText.replace(new RegExp(escapeRegExp(creatorName), 'gi'), creatorMention);
-      state.pushHistory(userId, 'assistant', finalText);
+      await pushHistory(userId, 'assistant', finalText);
 
       const responseEmbed = new EmbedBuilder()
         .setColor(randomColor)
