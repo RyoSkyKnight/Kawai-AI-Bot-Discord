@@ -13,7 +13,17 @@ module.exports = {
 
     const isDm = !message.guild;
     const isMentioned = message.guild && message.mentions.has(message.client.user.id) && !message.mentions.everyone;
-    const isAiChannel = message.guild && message.channel.name && (message.channel.name.includes('kawai-ai') || message.channel.name.includes('ask-cutie'));
+    // Fetch guild settings to determine if this channel is allowed for AI responses
+    let isAllowedChannel = false;
+    if (message.guild) {
+      const { getGuildSettings } = require('../services/guildSettings');
+      const settings = await getGuildSettings(message.guild.id);
+      if (settings && settings.ask_channel_id) {
+        isAllowedChannel = message.channel.id === settings.ask_channel_id;
+      }
+    }
+    // Continue if DM, bot mentioned, or channel is explicitly allowed via guild settings
+    const isAiChannel = isAllowedChannel;
 
     if (isDm || isMentioned || isAiChannel) {
       if (state.activeAskUsers.has(message.author.id)) {
