@@ -142,11 +142,20 @@ Butuh akses ke database atau AI? `require` service yang relevan dari `../../serv
 | 🛡️ Moderation | `/ban` `/unban` `/kick` `/timeout` `/untimeout` `/warn` `/warnings` `/clearwarnings` `/clear` `/lock` `/unlock` `/slowmode` `/nickname` `/announce` `/modstats` `/bans` |
 | 🔇 Auto-Mute | `/setautomute` `/removeautomute` `/setbadwordmute` `/removebadwordmute` `/addbadword` `/removebadword` `/listbadwords` |
 | 🎭 Roles | `/addrole` `/removerole` `/createrole` `/deleterole` |
-| ⚙️ Server Setup | `/setwelcome` `/removewelcome` `/testwelcome` `/setgoodbye` `/removegoodbye` `/autorole` `/removeautorole` `/setlog` `/removelog` |
+| ⚙️ Server Setup | `/setwelcome` `/removewelcome` `/testwelcome` `/setgoodbye` `/removegoodbye` `/autorole` `/removeautorole` `/setlog` `/removelog` `/setpersonality` |
 
 ## Environment Variables
 
 Lihat `.env.example` untuk template lengkap.
+
+## Database Migration
+
+```sql
+CREATE TABLE IF NOT EXISTS user_personality (
+  user_id VARCHAR PRIMARY KEY,
+  personality VARCHAR
+);
+```
 
 | Variable | Keterangan |
 |---|---|
