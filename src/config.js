@@ -6,6 +6,7 @@ module.exports = {
   API_KEY: process.env.API_KEY,
   USE_SHORT_RESPONSE: process.env.USE_SHORT_RESPONSE === 'true',
   CREATOR_ID: process.env.CREATOR_ID,
+  TENOR_API_KEY: process.env.TENOR_API_KEY,
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_KEY: process.env.SUPABASE_KEY,
 };

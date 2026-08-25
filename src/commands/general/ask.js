@@ -5,7 +5,8 @@ const { getToolDefinitions, runTool } = require('../../services/aiTools');
 const { getHistory, pushHistory } = require('../../services/conversationHistory');
 const state = require('../../state');
 const { CREATOR_ID, USE_SHORT_RESPONSE } = require('../../config');
-const { randomColor } = require('../../utils/constants');
+const { randomColor, PERSONALITIES } = require('../../utils/constants');
+const { getGuildSettings } = require('../../services/guildSettings');
 
 const MAX_TOOL_ROUNDS = 3; // safety cap on tool-call <-> model round-trips
 
@@ -83,12 +84,25 @@ module.exports = {
           `\nAlways use the exact mention format <@USER_ID> (for example, <@${resolvedMentions[0].id}>) in your response if you want to tag or refer to them. Do NOT convert mentions to plain text like "@username".`;
       }
 
+      // Fetch guild settings to determine personality
+      let personality = 'sweet';
+      // Try per-user personality first
+      const userPers = await (require('../../services/userPersonality').getUserPersonality(userId));
+      if (userPers && PERSONALITIES[userPers]) {
+        personality = userPers;
+      } else if (interaction.guild) {
+        const settings = await getGuildSettings(interaction.guild.id);
+        if (settings && settings.personality && PERSONALITIES[settings.personality]) {
+          personality = settings.personality;
+        }
+      }
+
+      const pInfo = PERSONALITIES[personality];
+
       const systemInstruction = (USE_SHORT_RESPONSE
-        ? `You are Cutie, a helpful and adorable anime-style AI assistant! (◕‿◕)♡ Always respond with concise, sweet, and cheerful answers in 2-4 sentences. Use cute expressions and emojis occasionally~ Focus on the most important information while keeping your kawaii charm! ✨
-        Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}. For example: "My wonderful creator is ${creatorName}! 💖"`
-        : `You are Cutie, a friendly and knowledgeable anime-style AI assistant with a sweet personality! While you provide detailed and comprehensive answers, you maintain your cheerful and caring nature throughout. Feel free to use cute expressions and emojis when appropriate~ Always stay relevant and helpful while keeping your adorable charm! (｡◕‿◕｡)
-        Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}.`
-      ) + toolsNote + mentionsNote;
+        ? `${pInfo.instruction} Always respond with concise, short answers in 2-4 sentences. Use emojis occasionally~`
+        : `${pInfo.instruction} Provide detailed and comprehensive answers while maintaining your personality.`
+      ) + `\nImportant: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}.` + toolsNote + mentionsNote;
 
       // Per-user session memory, persisted in Supabase: remember recent turns for this user only.
       await pushHistory(userId, 'user', prompt);
