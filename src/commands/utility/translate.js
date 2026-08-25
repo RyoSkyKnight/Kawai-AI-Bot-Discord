@@ -1,6 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const genAI = require('../../services/aiClient');
-const state = require('../../state');
+const { chatCompletion } = require('../../services/aiClient');
 
 module.exports = {
   data: {
@@ -25,20 +24,23 @@ module.exports = {
     const text = interaction.options.getString('text');
     const language = interaction.options.getString('language');
 
-    if (state.isProcessing) {
-      await interaction.reply({ content: '⏳ The bot is processing another request, please wait.', ephemeral: true });
-      return;
-    }
-
-    state.isProcessing = true;
     await interaction.deferReply();
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const prompt = `Translate the following text to ${language}. Only provide the translation, no explanations:\n\n${text}`;
+      const responseMessage = await chatCompletion({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional translator. Translate the given text to ${language}. Output ONLY the translated text itself without any introduction, explanations, quotes, or formatting.`
+          },
+          {
+            role: 'user',
+            content: text
+          }
+        ]
+      });
 
-      const result = await model.generateContent(prompt);
-      const translation = result.response.text();
+      const translation = responseMessage.content || '';
 
       const embed = new EmbedBuilder()
         .setColor('#3498DB')
@@ -51,9 +53,8 @@ module.exports = {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
+      console.error('Translation error:', error);
       await interaction.editReply({ content: '❌ An error occurred during translation.' });
-    } finally {
-      state.isProcessing = false;
     }
   }
 };

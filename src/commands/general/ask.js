@@ -50,20 +50,45 @@ module.exports = {
         console.log('Could not fetch creator user info');
       }
 
+      // Parse and fetch user mentions in the prompt to resolve their IDs to usernames for the AI
+      const mentionRegex = /<@!?(\d{17,20})>/g;
+      let match;
+      const resolvedMentions = [];
+      const seenIds = new Set();
+      while ((match = mentionRegex.exec(prompt)) !== null) {
+        const id = match[1];
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          try {
+            const resolvedUser = await interaction.client.users.fetch(id);
+            resolvedMentions.push({ id, username: resolvedUser.username });
+          } catch (err) {
+            // Ignore fetch errors
+          }
+        }
+      }
+
       // Tools are only offered inside a server (moderation actions make no sense in DMs).
       const tools = interaction.guild ? getToolDefinitions(interaction.member) : [];
 
       const toolsListStr = tools.map((t) => t.function.name).join(', ');
       const toolsNote = tools.length > 0
-        ? `\n\nYou also have access to moderation tools for this Discord server (${toolsListStr}). Only call a tool if the user clearly asks you to take that action — never call one speculatively. Every tool call is independently permission-checked server-side against the requesting user's real Discord permissions and role hierarchy, so if they lack permission the tool will refuse; when that happens, relay the refusal honestly and never claim an action succeeded if the tool result says it didn't. To target a user, use the numeric Discord ID from a mention like <@123456789012345678>; if the user didn't @mention anyone, ask them to before assuming who they mean.`
+        ? `\n\nYou also have access to helper/moderation tools for this Discord server (${toolsListStr}). Only call a tool if the user clearly asks you to take that action — never call one speculatively. Every tool call is independently permission-checked server-side against the requesting user's real Discord permissions and role hierarchy, so if they lack permission the tool will refuse; when that happens, relay the refusal honestly and never claim an action succeeded if the tool result says it didn't. To target a user, use the numeric Discord ID from a mention like <@123456789012345678>; if the user didn't @mention anyone, ask them to before assuming who they mean.`
         : '';
+
+      let mentionsNote = '';
+      if (resolvedMentions.length > 0) {
+        mentionsNote = `\n\nResolved user mentions in this query:\n` +
+          resolvedMentions.map(m => `- User <@${m.id}> has username "${m.username}" (ID: ${m.id})`).join('\n') +
+          `\nAlways use the exact mention format <@USER_ID> (for example, <@${resolvedMentions[0].id}>) in your response if you want to tag or refer to them. Do NOT convert mentions to plain text like "@username".`;
+      }
 
       const systemInstruction = (USE_SHORT_RESPONSE
         ? `You are Cutie, a helpful and adorable anime-style AI assistant! (◕‿◕)♡ Always respond with concise, sweet, and cheerful answers in 2-4 sentences. Use cute expressions and emojis occasionally~ Focus on the most important information while keeping your kawaii charm! ✨
         Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}. For example: "My wonderful creator is ${creatorName}! 💖"`
         : `You are Cutie, a friendly and knowledgeable anime-style AI assistant with a sweet personality! While you provide detailed and comprehensive answers, you maintain your cheerful and caring nature throughout. Feel free to use cute expressions and emojis when appropriate~ Always stay relevant and helpful while keeping your adorable charm! (｡◕‿◕｡)
         Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorName}.`
-      ) + toolsNote;
+      ) + toolsNote + mentionsNote;
 
       // Per-user session memory, persisted in Supabase: remember recent turns for this user only.
       await pushHistory(userId, 'user', prompt);
