@@ -31,13 +31,20 @@ module.exports = {
     const prompt = interaction.options.getString('question');
     const userId = interaction.user.id;
 
-    await interaction.deferReply();
-
+    // deferReply moved after lock check
     // Per-user lock, not global — one user's /ask no longer blocks everyone else's.
     if (state.activeAskUsers.has(userId)) {
-      await interaction.editReply({ content: '⏳ You already have a question being processed, please wait for it to finish.' });
+      await interaction.reply({ content: '⏳ You already have a question being processed, please wait for it to finish.', ephemeral: true });
       return;
     }
+    // Defer reply first (gives us 15 min to finish)
+    await interaction.deferReply();
+    // Show typing indicator while we process the request
+    if (interaction.channel) {
+      // Discord will show the typing status to the user
+      interaction.channel.sendTyping().catch(() => {});
+    }
+
     state.activeAskUsers.add(userId);
 
     try {
@@ -166,7 +173,12 @@ module.exports = {
       await interaction.editReply({ embeds: [responseEmbed] });
     } catch (error) {
       console.error('Error generating response:', error);
-      await interaction.editReply({ content: '❌ An error occurred while generating the response.' });
+      // If we have already deferred, edit the reply; otherwise send a fresh reply
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: '❌ An error occurred while generating the response.' });
+      } else {
+        await interaction.reply({ content: '❌ An error occurred while generating the response.', ephemeral: true });
+      }
     } finally {
       state.activeAskUsers.delete(userId);
     }
