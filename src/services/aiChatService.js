@@ -61,11 +61,10 @@ async function resolveMentions(prompt, client) {
 }
 
 /**
- * Builds the system instruction prompt based on personality, tools, and mentions.
+ * Resolves the effective personality for a user/guild context.
  */
-async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, resolvedMentions }) {
+async function getEffectivePersonality(userId, guildId) {
   let personality = 'sweet';
-
   const userPers = await getUserPersonality(userId);
   if (userPers && PERSONALITIES[userPers]) {
     personality = userPers;
@@ -75,8 +74,16 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
       personality = settings.personality;
     }
   }
+  return PERSONALITIES[personality] || PERSONALITIES['sweet'];
+}
 
-  const pInfo = PERSONALITIES[personality] || PERSONALITIES['sweet'];
+/**
+ * Builds the system instruction prompt based on personality, tools, and mentions.
+ */
+async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, resolvedMentions, pInfo }) {
+  if (!pInfo) {
+    pInfo = await getEffectivePersonality(userId, guildId);
+  }
 
   const toolsListStr = tools.map((t) => t.function.name).join(', ');
   const toolsNote = tools.length > 0
@@ -142,12 +149,16 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
   // Get tools available based on user permissions
   const tools = getToolDefinitions(member);
 
+  const startTime = Date.now();
+  const pInfo = await getEffectivePersonality(userId, guild?.id);
+
   const systemInstruction = await buildSystemInstruction({
     userId,
     guildId: guild?.id,
     creatorInfo,
     tools,
     resolvedMentions,
+    pInfo,
   });
 
   // Persist user prompt to history
@@ -219,7 +230,17 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
   // Persist assistant response to history
   await pushHistory(userId, 'assistant', finalText);
 
-  return finalText;
+  const latency = Date.now() - startTime;
+
+  return {
+    text: finalText,
+    personality: pInfo,
+    latency,
+    rawPrompt: prompt,
+    toString() {
+      return finalText;
+    },
+  };
 }
 
 module.exports = {

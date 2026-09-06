@@ -7,6 +7,7 @@ const { logModAction } = require('../services/moderation');
 const { sendLog } = require('../services/logChannel');
 const { parseDuration, formatDuration } = require('../utils/duration');
 const { processAiChat } = require('../services/aiChatService');
+const { sendModernAiResponse, createThinkingEmbed } = require('../utils/aiResponseHelper');
 
 // Periodic cleanup of stale spam tracking records (every 2 minutes)
 setInterval(() => {
@@ -63,15 +64,14 @@ module.exports = {
 
     if (isDm || isMentioned || isAiChannel) {
       if (state.activeAskUsers.has(message.author.id)) {
-        await message.reply('⏳ Please wait for my previous response to finish first!').catch(() => {});
+        await message.reply('⏳ Mohon tunggu respon sebelumnya selesai terlebih dahulu ya!').catch(() => {});
         return;
       }
 
       state.activeAskUsers.add(message.author.id);
+      let replyMsg = null;
 
       try {
-        await message.channel.sendTyping().catch(() => {});
-
         let prompt = message.content;
         if (message.guild) {
           const botMentionEscaped = `<@!?${message.client.user.id}>`;
@@ -79,24 +79,55 @@ module.exports = {
         }
 
         if (!prompt) {
-          await message.reply("Yes? How can I help you today? (◕‿◕)♡").catch(() => {});
+          await message.reply("Ya? Ada yang bisa Cutie bantu hari ini? (◕‿◕)♡").catch(() => {});
           return;
         }
 
-        const finalText = await processAiChat({
-          prompt,
-          user: message.author,
-          member: message.member,
-          guild: message.guild,
-          channel: message.channel,
-          client: message.client,
-        });
+        replyMsg = await message.reply({ embeds: [createThinkingEmbed()] }).catch(() => null);
+        if (!replyMsg) {
+          await message.channel.sendTyping().catch(() => {});
+        }
 
-        const replyContent = finalText.length > 2000 ? finalText.substring(0, 1990) + '...' : finalText;
-        await message.reply(replyContent).catch(() => {});
+        const executeAi = async () => {
+          return await processAiChat({
+            prompt,
+            user: message.author,
+            member: message.member,
+            guild: message.guild,
+            channel: message.channel,
+            client: message.client,
+          });
+        };
+
+        const aiResult = await executeAi();
+
+        if (replyMsg) {
+          await sendModernAiResponse({
+            target: replyMsg,
+            user: message.author,
+            prompt,
+            aiResult,
+            onRegenerate: executeAi,
+          });
+        } else {
+          const fallbackMsg = await message.reply({ content: '...' }).catch(() => null);
+          if (fallbackMsg) {
+            await sendModernAiResponse({
+              target: fallbackMsg,
+              user: message.author,
+              prompt,
+              aiResult,
+              onRegenerate: executeAi,
+            });
+          }
+        }
       } catch (error) {
         console.error('Auto-AI error:', error);
-        await message.reply('❌ An error occurred while generating the response.').catch(() => {});
+        if (replyMsg) {
+          await replyMsg.edit({ content: '❌ Terjadi kesalahan saat memproses jawaban AI.', embeds: [] }).catch(() => {});
+        } else {
+          await message.reply('❌ Terjadi kesalahan saat memproses jawaban AI.').catch(() => {});
+        }
       } finally {
         state.activeAskUsers.delete(message.author.id);
       }

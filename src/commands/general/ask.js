@@ -1,12 +1,11 @@
-const { EmbedBuilder } = require('discord.js');
 const state = require('../../state');
-const { randomColor } = require('../../utils/constants');
 const { processAiChat } = require('../../services/aiChatService');
+const { sendModernAiResponse, createThinkingEmbed } = require('../../utils/aiResponseHelper');
 
 module.exports = {
   data: {
     name: 'ask',
-    description: 'Ask a question to the bot powered by OpenRouter AI',
+    description: 'Ask a question to Cutie AI with modern interactive responses',
     options: [
       {
         name: 'question',
@@ -21,11 +20,16 @@ module.exports = {
     const userId = interaction.user.id;
 
     if (state.activeAskUsers.has(userId)) {
-      await interaction.reply({ content: '⏳ You already have a question being processed, please wait for it to finish.', ephemeral: true });
+      await interaction.reply({
+        content: '⏳ Kamu masih memiliki pertanyaan yang sedang diproses. Mohon tunggu sebentar ya!',
+        ephemeral: true,
+      });
       return;
     }
 
     await interaction.deferReply();
+    await interaction.editReply({ embeds: [createThinkingEmbed()] }).catch(() => {});
+
     if (interaction.channel) {
       interaction.channel.sendTyping().catch(() => {});
     }
@@ -33,29 +37,33 @@ module.exports = {
     state.activeAskUsers.add(userId);
 
     try {
-      const finalText = await processAiChat({
-        prompt,
+      const executeAi = async () => {
+        return await processAiChat({
+          prompt,
+          user: interaction.user,
+          member: interaction.member,
+          guild: interaction.guild,
+          channel: interaction.channel,
+          client: interaction.client,
+          interaction,
+        });
+      };
+
+      const aiResult = await executeAi();
+
+      await sendModernAiResponse({
+        target: interaction,
         user: interaction.user,
-        member: interaction.member,
-        guild: interaction.guild,
-        channel: interaction.channel,
-        client: interaction.client,
-        interaction,
+        prompt,
+        aiResult,
+        onRegenerate: executeAi,
       });
-
-      const responseEmbed = new EmbedBuilder()
-        .setColor(randomColor)
-        .setTitle('💖 Response from Cutie')
-        .setDescription(`**Question:** ${prompt}\n\n**Answer:**\n${finalText}`)
-        .setTimestamp();
-
-      await interaction.editReply({ embeds: [responseEmbed] });
     } catch (error) {
-      console.error('Error generating response:', error);
+      console.error('Error generating response in /ask:', error);
       if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ content: '❌ An error occurred while generating the response.' });
+        await interaction.editReply({ content: '❌ Terjadi kesalahan saat memproses jawaban. Silakan coba lagi.' }).catch(() => {});
       } else {
-        await interaction.reply({ content: '❌ An error occurred while generating the response.', ephemeral: true });
+        await interaction.reply({ content: '❌ Terjadi kesalahan saat memproses jawaban.', ephemeral: true }).catch(() => {});
       }
     } finally {
       state.activeAskUsers.delete(userId);
