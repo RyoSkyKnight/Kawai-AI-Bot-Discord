@@ -1,6 +1,6 @@
 const supabase = require('./supabaseClient');
 
-const MAX_HISTORY_MESSAGES = 50; // ~5 user/assistant exchanges kept per user
+const MAX_HISTORY_MESSAGES = 12; // ~6 user/assistant exchanges kept per user
 
 // Returns the last N messages for a user, oldest first, in
 // { role, content } shape ready to spread into an OpenRouter messages array.

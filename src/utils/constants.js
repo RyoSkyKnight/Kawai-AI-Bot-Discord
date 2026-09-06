@@ -48,8 +48,12 @@ const PERSONALITIES = {
 
 module.exports = {
   pastelColors,
-  randomColor: pastelColors[Math.floor(Math.random() * pastelColors.length)],
+  get randomColor() {
+    return pastelColors[Math.floor(Math.random() * pastelColors.length)];
+  },
+  getRandomColor: () => pastelColors[Math.floor(Math.random() * pastelColors.length)],
   quotes,
   eightBallResponses,
   PERSONALITIES,
 };
+

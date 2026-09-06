@@ -1,6 +1,15 @@
 const supabase = require('./supabaseClient');
+const cache = require('./cache');
+
+const AUTO_MUTE_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function getAutoMuteSettings(guildId) {
+  const cacheKey = `automute_settings_${guildId}`;
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const { data, error } = await supabase
       .from('auto_mute_settings')
@@ -13,7 +22,9 @@ async function getAutoMuteSettings(guildId) {
       return null;
     }
 
-    return data;
+    const settings = data || null;
+    cache.set(cacheKey, settings, AUTO_MUTE_TTL);
+    return settings;
   } catch (err) {
     console.error('Exception in getAutoMuteSettings:', err);
     return null;
@@ -38,6 +49,9 @@ async function updateAutoMuteSettings(guildId, settings) {
       return false;
     }
 
+    // Invalidate cache immediately
+    cache.del(`automute_settings_${guildId}`);
+
     return true;
   } catch (err) {
     console.error('Exception in updateAutoMuteSettings:', err);
@@ -46,3 +60,4 @@ async function updateAutoMuteSettings(guildId, settings) {
 }
 
 module.exports = { getAutoMuteSettings, updateAutoMuteSettings };
+

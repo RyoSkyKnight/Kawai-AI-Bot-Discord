@@ -13,6 +13,7 @@ async function chatCompletion({ messages, tools, maxTokens = 1000, temperature =
     max_tokens: maxTokens,
     temperature,
     messages,
+    include_reasoning: false,
   };
 
   if (tools && tools.length > 0) {

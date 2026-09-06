@@ -11,8 +11,8 @@ module.exports = {
         .addChannelTypes(0) // GuildText
         .setRequired(true)
     )
-    // Only admins (or members with ManageGuild) may use this command
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    // Admins and members with ManageGuild may use this command
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   /**
    * Execute the command.
@@ -28,7 +28,7 @@ module.exports = {
     }
 
     // Permission guard – ensure the user has admin or ManageGuild rights
-    const memberPerms = interaction.memberPermissions;
+    const memberPerms = interaction.memberPermissions || interaction.member?.permissions;
     if (!memberPerms || !(memberPerms.has(PermissionFlagsBits.Administrator) || memberPerms.has(PermissionFlagsBits.ManageGuild))) {
       await interaction.reply({ content: '❌ You do not have permission to set the AI channel. Only admins or members with Manage Server permission can do this.', ephemeral: true });
       return;

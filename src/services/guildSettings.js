@@ -1,6 +1,15 @@
 const supabase = require('./supabaseClient');
+const cache = require('./cache');
+
+const GUILD_SETTINGS_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function getGuildSettings(guildId) {
+  const cacheKey = `guild_settings_${guildId}`;
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const { data, error } = await supabase
       .from('guild_settings')
@@ -10,13 +19,16 @@ async function getGuildSettings(guildId) {
 
     if (error) {
       if (error.code === 'PGRST116') {
+        cache.set(cacheKey, {}, GUILD_SETTINGS_TTL);
         return {};
       }
       console.error('Error fetching guild settings:', error);
       return {};
     }
 
-    return data || {};
+    const settings = data || {};
+    cache.set(cacheKey, settings, GUILD_SETTINGS_TTL);
+    return settings;
   } catch (err) {
     console.error('Exception in getGuildSettings:', err);
     return {};
@@ -57,6 +69,9 @@ async function updateGuildSettings(guildId, settings) {
       return false;
     }
 
+    // Invalidate cache immediately
+    cache.del(`guild_settings_${guildId}`);
+
     console.log('Settings updated successfully:', data);
     return true;
   } catch (err) {
@@ -66,3 +81,4 @@ async function updateGuildSettings(guildId, settings) {
 }
 
 module.exports = { getGuildSettings, updateGuildSettings };
+

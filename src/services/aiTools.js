@@ -1,7 +1,9 @@
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const { addWarning, getWarnings, clearWarnings, logModAction, getModStats } = require('./moderation');
 const { sendLog } = require('./logChannel');
-const { parseDuration } = require('../utils/duration');
+const { parseDuration, formatDuration } = require('../utils/duration');
+const { updateGuildSettings } = require('./guildSettings');
+const math = require('mathjs');
 const state = require('../state');
 
 // Pull a Discord snowflake out of a raw string or a <@id> / <@!id> mention.
@@ -13,13 +15,28 @@ function extractUserId(raw) {
 
 async function resolveTarget(interaction, userIdRaw) {
   const userId = extractUserId(userIdRaw);
-  if (!userId) return { error: 'No valid user ID or mention was provided. Ask the user to @mention who they mean.' };
+  if (userId) {
+    const user = await interaction.client.users.fetch(userId).catch(() => null);
+    const member = interaction.guild ? await interaction.guild.members.fetch(userId).catch(() => null) : null;
+    if (user) return { user, member };
+  }
 
-  const user = await interaction.client.users.fetch(userId).catch(() => null);
-  if (!user) return { error: `Could not find a Discord user with ID ${userId}.` };
+  // Fallback: If not a snowflake, search guild members by username or nickname
+  if (interaction.guild && typeof userIdRaw === 'string') {
+    const query = userIdRaw.replace(/^@/, '').toLowerCase().trim();
+    if (query) {
+      const match = interaction.guild.members.cache.find((m) =>
+        m.user.username.toLowerCase() === query ||
+        m.displayName.toLowerCase() === query ||
+        m.user.tag.toLowerCase() === query
+      );
+      if (match) {
+        return { user: match.user, member: match };
+      }
+    }
+  }
 
-  const member = await interaction.guild.members.fetch(userId).catch(() => null);
-  return { user, member };
+  return { error: 'No valid user ID, mention, or member was found. Ask the user to @mention who they mean.' };
 }
 
 // Same hierarchy rules used by /ban, /kick, /timeout.
@@ -719,44 +736,590 @@ const tools = {
     },
   },
 
+  calculate: {
+    permission: null, // Public utility tool
+    definition: {
+      type: 'function',
+      function: {
+        name: 'calculate',
+        description: 'Perform exact mathematical calculations or evaluate math expressions (e.g. "25 * 40", "sqrt(144)", "15% of 200").',
+        parameters: {
+          type: 'object',
+          properties: {
+            expression: {
+              type: 'string',
+              description: 'The mathematical expression to evaluate, e.g. "25 * 40", "sqrt(16) + 10".',
+            },
+          },
+          required: ['expression'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      try {
+        const result = math.evaluate(args.expression);
+        return { ok: true, message: `Hasil dari ${args.expression} = ${result}` };
+      } catch (err) {
+        return { ok: false, message: `Gagal menghitung ekspresi: ${err.message}` };
+      }
+    },
+  },
+
   set_reminder: {
     permission: null,
     definition: {
       type: 'function',
       function: {
         name: 'set_reminder',
-        description: "Set a reminder for the invoking user.",
+        description: "Set a countdown timer or reminder for the user. Call this tool whenever the user asks to be reminded of something, set a timer, or count down time (e.g. 'tolong ingatkan aku dalam 1 menit ya', 'set timer 5 menit', 'ingetin 10 menit lagi', 'remind me in 1 hour').",
         parameters: {
           type: 'object',
           properties: {
-            time: { type: 'string', description: 'Time duration, e.g. 10s, 5m, 2h, 1d' },
-            message: { type: 'string', description: 'What to remind the user about' },
+            duration: { type: 'string', description: 'Duration or time, e.g. "1m", "1 menit", "10s", "30 detik", "1h", "2 jam"' },
+            time: { type: 'string', description: 'Alias for duration' },
+            message: { type: 'string', description: 'What to remind the user about (e.g. "minum obat", "cek oven"). Defaults to "Waktunya selesai!" if not provided.' },
           },
-          required: ['time', 'message'],
         },
       },
     },
     async handler(interaction, args) {
-      const { parseDuration } = require('../utils/duration');
-      const duration = parseDuration(args.time);
-      if (!duration) return { ok: false, message: 'Invalid time format. Use s, m, h, or d (e.g. 10m, 2h).' };
+      const rawTime = args.duration || args.time;
+      const ms = parseDuration(rawTime);
+      if (!ms || ms <= 0) {
+        return { ok: false, message: 'Format waktu tidak valid. Gunakan format seperti 10s, 1m, 5 menit, 1 jam.' };
+      }
+      if (ms > 24 * 60 * 60 * 1000 * 30) {
+        return { ok: false, message: 'Durasi maksimal pengingat adalah 30 hari.' };
+      }
 
       const user = interaction.user;
+      const channel = interaction.channel;
+      const reminderMsg = args.message && args.message.trim() ? args.message.trim() : 'Waktunya selesai!';
+      const timeStr = formatDuration(ms, 'id');
 
-      setTimeout(() => {
-        user.send(`⏰ **Reminder:** ${args.message}`)
-          .catch(() => interaction.followUp({ content: `<@${user.id}> ⏰ **Reminder:** ${args.message}` }).catch(() => {}));
-      }, duration);
+      setTimeout(async () => {
+        const alertContent = `⏰ <@${user.id}> **Pengingat / Timer (${timeStr}):**\n${reminderMsg}`;
+        let sent = false;
+        if (channel && channel.send) {
+          try {
+            await channel.send({ content: alertContent });
+            sent = true;
+          } catch (_) {}
+        }
+        if (!sent) {
+          try {
+            await user.send(alertContent);
+          } catch (_) {}
+        }
+      }, ms);
 
-      return { ok: true, message: `Successfully scheduled a reminder in ${args.time} for "${args.message}".` };
+      return {
+        ok: true,
+        message: `Pengingat / timer berhasil disetel untuk ${timeStr}. Catatan: "${reminderMsg}".`,
+      };
+    },
+  },
+
+  set_timer: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_timer',
+        description: "Set a countdown timer or reminder. Call this tool whenever the user asks to set a timer, countdown, or be reminded (e.g. 'set timer 1 menit', 'tolong pasang timer 5 menit', 'set timer 10s').",
+        parameters: {
+          type: 'object',
+          properties: {
+            duration: { type: 'string', description: 'Duration or time, e.g. "1m", "1 menit", "10s", "30 detik", "1h", "2 jam"' },
+            time: { type: 'string', description: 'Alias for duration' },
+            message: { type: 'string', description: 'Note for the timer. Defaults to "Waktunya selesai!" if not provided.' },
+          },
+        },
+      },
+    },
+    async handler(interaction, args) {
+      return await tools.set_reminder.handler(interaction, args);
+    },
+  },
+
+  choose_option: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'choose_option',
+        description: 'Choose randomly between multiple options when the user is undecided (e.g. "pilihin makan apa: sate, bakso, nasgor", "choose between movie or gaming").',
+        parameters: {
+          type: 'object',
+          properties: {
+            options: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'List of choices to pick from, e.g. ["sate", "bakso", "nasgor"]',
+            },
+          },
+          required: ['options'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      let opts = args.options;
+      if (typeof opts === 'string') {
+        opts = opts.split(/,| atau | or /i).map(s => s.trim()).filter(Boolean);
+      }
+      if (!Array.isArray(opts) || opts.length < 2) {
+        return { ok: false, message: 'Berikan minimal 2 opsi untuk dipilih!' };
+      }
+      const chosen = opts[Math.floor(Math.random() * opts.length)];
+      return { ok: true, chosen, allOptions: opts, message: `Dari pilihan (${opts.join(', ')}), pilihanku adalah: ${chosen}! ✨` };
+    },
+  },
+
+  flip_coin: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'flip_coin',
+        description: 'Flip a coin and get Heads or Tails (e.g. "lempar koin dong", "toss coin").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler() {
+      const isHeads = Math.random() < 0.5;
+      const result = isHeads ? 'Heads (Gambar 👑)' : 'Tails (Angka ⚪)';
+      return { ok: true, result, isHeads };
+    },
+  },
+
+  roll_dice: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'roll_dice',
+        description: 'Roll a dice with a specified number of sides (e.g. "roll dadu", "roll dadu d20", "roll dice 1-100").',
+        parameters: {
+          type: 'object',
+          properties: {
+            sides: { type: 'integer', description: 'Number of sides on the dice (default: 6, min: 2, max: 1000)' },
+          },
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const sides = Math.max(2, Math.min(parseInt(args.sides, 10) || 6, 1000));
+      const roll = Math.floor(Math.random() * sides) + 1;
+      return { ok: true, roll, sides, message: `Hasil lemparan dadu ${sides} sisi: ${roll} 🎲` };
+    },
+  },
+
+  create_poll: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'create_poll',
+        description: 'Create an interactive voting poll in the channel with number reaction emojis (e.g. "bikinin polling: mabar apa malam ini? pilihannya: ML, Valo, FF").',
+        parameters: {
+          type: 'object',
+          properties: {
+            question: { type: 'string', description: 'The poll question or topic' },
+            options: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'List of 2 to 10 choices/options',
+            },
+          },
+          required: ['question', 'options'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const channel = interaction.channel;
+      if (!channel || !channel.send) {
+        return { ok: false, message: 'Tidak dapat membuat polling di channel ini.' };
+      }
+      let opts = args.options;
+      if (typeof opts === 'string') {
+        opts = opts.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      if (!Array.isArray(opts) || opts.length < 2) {
+        return { ok: false, message: 'Polling membutuhkan minimal 2 opsi.' };
+      }
+      if (opts.length > 10) {
+        opts = opts.slice(0, 10);
+      }
+
+      const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+      const embed = new EmbedBuilder()
+        .setColor('#F39C12')
+        .setTitle('📊 Polling')
+        .setDescription(`**${args.question}**\n\n` + opts.map((opt, i) => `${numberEmojis[i]} ${opt}`).join('\n'))
+        .setFooter({ text: `Dibuat oleh ${interaction.user?.username || 'User'}` })
+        .setTimestamp();
+
+      try {
+        const pollMsg = await channel.send({ embeds: [embed] });
+        for (let i = 0; i < opts.length; i++) {
+          await pollMsg.react(numberEmojis[i]).catch(() => {});
+        }
+        return { ok: true, message: `Polling "${args.question}" dengan ${opts.length} opsi berhasil dibuat di channel!` };
+      } catch (err) {
+        return { ok: false, message: `Gagal mengirim polling: ${err.message}` };
+      }
+    },
+  },
+
+  manage_todo: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'manage_todo',
+        description: 'Manage personal to-do list / notes for the user. Actions: "add" (add item), "list" (show items), "remove" (delete item by 1-indexed number or text), "clear" (remove all items).',
+        parameters: {
+          type: 'object',
+          properties: {
+            action: {
+              type: 'string',
+              enum: ['add', 'list', 'remove', 'clear'],
+              description: 'The action to perform: add, list, remove, or clear',
+            },
+            item: {
+              type: 'string',
+              description: 'The task description or note (for "add") or index/text to remove (for "remove")',
+            },
+          },
+          required: ['action'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const userId = interaction.user?.id;
+      if (!userId) return { ok: false, message: 'User tidak teridentifikasi.' };
+
+      if (!state.userTodos.has(userId)) {
+        state.userTodos.set(userId, []);
+      }
+      const todos = state.userTodos.get(userId);
+
+      const action = (args.action || 'list').toLowerCase();
+
+      if (action === 'add') {
+        if (!args.item || !args.item.trim()) {
+          return { ok: false, message: 'Sebutkan tugas/catatan yang ingin ditambahkan!' };
+        }
+        todos.push(args.item.trim());
+        return {
+          ok: true,
+          message: `Berhasil menambahkan ke to-do list: "${args.item.trim()}". Sekarang kamu punya ${todos.length} tugas.`,
+          todos,
+        };
+      }
+
+      if (action === 'list') {
+        if (todos.length === 0) {
+          return { ok: true, message: 'To-do list kamu saat ini masih kosong! 🎉', todos: [] };
+        }
+        const formatted = todos.map((t, idx) => `${idx + 1}. ${t}`).join('\n');
+        return {
+          ok: true,
+          message: `Daftar to-do kamu (${todos.length}):\n${formatted}`,
+          todos,
+        };
+      }
+
+      if (action === 'remove') {
+        if (todos.length === 0) {
+          return { ok: false, message: 'To-do list kamu sudah kosong.' };
+        }
+        const idx = parseInt(args.item, 10);
+        let removed;
+        if (!isNaN(idx) && idx >= 1 && idx <= todos.length) {
+          removed = todos.splice(idx - 1, 1)[0];
+        } else if (args.item) {
+          const matchIdx = todos.findIndex(t => t.toLowerCase().includes(args.item.toLowerCase()));
+          if (matchIdx !== -1) {
+            removed = todos.splice(matchIdx, 1)[0];
+          }
+        }
+        if (!removed) {
+          return { ok: false, message: `Tidak menemukan tugas yang cocok dengan "${args.item}".` };
+        }
+        return { ok: true, message: `Berhasil menghapus tugas: "${removed}". Sisa ${todos.length} tugas.` };
+      }
+
+      if (action === 'clear') {
+        state.userTodos.set(userId, []);
+        return { ok: true, message: 'Semua to-do list kamu telah dibersihkan! 🗑️' };
+      }
+
+      return { ok: false, message: `Aksi tidak dikenal: ${action}` };
+    },
+  },
+
+  clear_messages: {
+    permission: PermissionFlagsBits.ManageMessages,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'clear_messages',
+        description: 'Bulk delete recent messages in the current channel (1-100 messages). Requires ManageMessages permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            amount: { type: 'integer', description: 'Number of messages to delete (1-100)' },
+          },
+          required: ['amount'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const channel = interaction.channel;
+      if (!channel || !channel.bulkDelete) {
+        return { ok: false, message: 'Pesan tidak dapat dihapus di channel ini.' };
+      }
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        return { ok: false, message: 'Aku tidak memiliki izin ManageMessages di server ini.' };
+      }
+
+      const amount = Math.max(1, Math.min(parseInt(args.amount, 10) || 1, 100));
+      try {
+        const deleted = await channel.bulkDelete(amount, true);
+        return { ok: true, message: `Berhasil menghapus ${deleted.size} pesan terakhir.` };
+      } catch (err) {
+        return { ok: false, message: `Gagal menghapus pesan: ${err.message}` };
+      }
+    },
+  },
+
+  set_slowmode: {
+    permission: PermissionFlagsBits.ManageChannels,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_slowmode',
+        description: 'Set slowmode rate limit per user for the channel (0 to disable, max 6 hours). Requires ManageChannels permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            duration: { type: 'string', description: 'Duration in seconds or text like "10s", "1m", "0" to disable' },
+          },
+          required: ['duration'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const channel = interaction.channel;
+      if (!channel || !channel.setRateLimitPerUser) {
+        return { ok: false, message: 'Slowmode tidak dapat diatur di channel ini.' };
+      }
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return { ok: false, message: 'Aku tidak memiliki izin ManageChannels di server ini.' };
+      }
+
+      const raw = String(args.duration).trim().toLowerCase();
+      let seconds = 0;
+      if (raw === '0' || raw === 'disable' || raw === 'off' || raw === 'mati') {
+        seconds = 0;
+      } else {
+        const ms = parseDuration(raw);
+        seconds = ms ? Math.floor(ms / 1000) : (parseInt(raw, 10) || 0);
+      }
+
+      if (seconds < 0 || seconds > 21600) {
+        return { ok: false, message: 'Durasi slowmode harus antara 0 dan 21600 detik (maksimal 6 jam).' };
+      }
+
+      try {
+        await channel.setRateLimitPerUser(seconds);
+        return {
+          ok: true,
+          message: seconds === 0
+            ? 'Slowmode berhasil dimatikan.'
+            : `Slowmode channel berhasil diatur ke ${seconds} detik per user.`,
+        };
+      } catch (err) {
+        return { ok: false, message: `Gagal mengatur slowmode: ${err.message}` };
+      }
+    },
+  },
+
+  urban_dictionary: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'urban_dictionary',
+        description: 'Look up slang words, internet terms, or modern phrases in Urban Dictionary (e.g. "arti rizz", "apa itu skibidi").',
+        parameters: {
+          type: 'object',
+          properties: {
+            term: { type: 'string', description: 'Word or slang phrase to look up' },
+          },
+          required: ['term'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      try {
+        const res = await fetch(`https://api.urbandictionary.com/v0/define?term=${encodeURIComponent(args.term)}`);
+        if (!res.ok) return { ok: false, message: 'Layanan Urban Dictionary sedang tidak dapat diakses.' };
+        const data = await res.json();
+        if (!data.list || data.list.length === 0) {
+          return { ok: false, message: `Tidak ditemukan definisi untuk istilah "${args.term}".` };
+        }
+        const top = data.list[0];
+        return {
+          ok: true,
+          word: top.word,
+          definition: top.definition.replace(/\[|\]/g, '').substring(0, 500),
+          example: top.example ? top.example.replace(/\[|\]/g, '').substring(0, 300) : null,
+          thumbsUp: top.thumbs_up,
+        };
+      } catch (err) {
+        return { ok: false, message: `Gagal mengambil data: ${err.message}` };
+      }
+    },
+  },
+
+  generate_qr: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'generate_qr',
+        description: 'Generate a QR code image URL for any text or link (e.g. "buatkan QR code untuk https://...").',
+        parameters: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', description: 'The text or URL to encode into QR code' },
+          },
+          required: ['text'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      if (!args.text || !args.text.trim()) {
+        return { ok: false, message: 'Masukkan teks atau URL untuk dibuatkan QR code.' };
+      }
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(args.text.trim())}`;
+      return {
+        ok: true,
+        qrUrl,
+        message: `QR code berhasil dibuat untuk: ${args.text.trim()}`,
+      };
+    },
+  },
+
+  get_quote: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_quote',
+        description: 'Get an inspiring motivational quote (e.g. "minta kata motivasi", "quote hari ini").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler() {
+      const { quotes } = require('../utils/constants');
+      if (quotes && quotes.length > 0) {
+        const q = quotes[Math.floor(Math.random() * quotes.length)];
+        return { ok: true, quote: q.text, author: q.author };
+      }
+      return { ok: true, quote: 'Believe in yourself and all that you are.', author: 'Christian D. Larson' };
+    },
+  },
+
+  get_fact: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_fact',
+        description: 'Get an interesting random fun fact (e.g. "kasih fakta unik", "fakta menarik hari ini").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler() {
+      try {
+        const res = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random?language=en');
+        if (res.ok) {
+          const data = await res.json();
+          return { ok: true, fact: data.text };
+        }
+      } catch (_) {}
+      return { ok: true, fact: 'Honey never spoils. Archaeologists have found pots of honey in ancient Egyptian tombs that are over 3,000 years old and still perfectly edible!' };
+    },
+  },
+
+  set_ai_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_ai_channel',
+        description: 'Set or remove the dedicated channel for AI auto-reply in this server. Requires ManageGuild (Manage Server) or Administrator permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            action: {
+              type: 'string',
+              enum: ['set', 'remove'],
+              description: '"set" to set the AI channel, "remove" to disable it',
+            },
+            channelId: {
+              type: 'string',
+              description: 'The channel mention (e.g. <#123>) or channel ID. If omitted for "set", uses the current channel.',
+            },
+          },
+          required: ['action'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      if (!interaction.guild) {
+        return { ok: false, message: 'Perintah ini hanya dapat digunakan di dalam server.' };
+      }
+      const action = (args.action || 'set').toLowerCase();
+      if (action === 'remove' || action === 'disable') {
+        const success = await updateGuildSettings(interaction.guild.id, { ask_channel_id: null });
+        return {
+          ok: success,
+          message: success
+            ? 'Channel khusus AI berhasil dimatikan. Bot sekarang hanya akan merespon jika dimention.'
+            : 'Gagal memperbarui pengaturan database.',
+        };
+      }
+
+      let targetChannelId = interaction.channel?.id;
+      if (args.channelId) {
+        const match = String(args.channelId).match(/\d{17,20}/);
+        if (match) targetChannelId = match[0];
+      }
+
+      if (!targetChannelId) {
+        return { ok: false, message: 'Tidak dapat mendeteksi ID channel target.' };
+      }
+
+      const success = await updateGuildSettings(interaction.guild.id, { ask_channel_id: targetChannelId });
+      return {
+        ok: success,
+        message: success
+          ? `Channel auto-reply AI berhasil diatur ke <#${targetChannelId}>!`
+          : 'Gagal menyimpan pengaturan ke database.',
+      };
     },
   },
 };
 
 function getToolDefinitions(member) {
-  if (!member) return [];
   return Object.values(tools)
-    .filter((t) => !t.permission || member.permissions.has(t.permission))
+    .filter((t) => !t.permission || (member && member.permissions && member.permissions.has(t.permission)))
     .map((t) => t.definition);
 }
 
@@ -768,12 +1331,13 @@ async function runTool(interaction, name, args) {
   const tool = tools[name];
   if (!tool) return { ok: false, message: `Unknown tool: ${name}` };
 
-  if (!interaction.guild) {
-    return { ok: false, message: 'This action can only be used inside a server, not in DMs.' };
-  }
-
-  if (tool.permission && !interaction.member.permissions.has(tool.permission)) {
-    return { ok: false, message: "You don't have permission to do that in this server." };
+  if (tool.permission) {
+    if (!interaction.guild) {
+      return { ok: false, message: 'This action can only be used inside a server, not in DMs.' };
+    }
+    if (!interaction.member?.permissions?.has(tool.permission)) {
+      return { ok: false, message: "You don't have permission to do that in this server." };
+    }
   }
 
   try {

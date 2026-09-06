@@ -1,6 +1,15 @@
 const supabase = require('./supabaseClient');
+const cache = require('./cache');
+
+const BAD_WORDS_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function getBadWords(guildId) {
+  const cacheKey = `bad_words_${guildId}`;
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const { data, error } = await supabase
       .from('bad_words')
@@ -13,7 +22,9 @@ async function getBadWords(guildId) {
       return [];
     }
 
-    return data || [];
+    const words = data || [];
+    cache.set(cacheKey, words, BAD_WORDS_TTL);
+    return words;
   } catch (err) {
     console.error('Exception in getBadWords:', err);
     return [];
@@ -39,6 +50,9 @@ async function addBadWord(guildId, word, addedBy) {
       return { success: false, error: error.message };
     }
 
+    // Invalidate cache immediately
+    cache.del(`bad_words_${guildId}`);
+
     return { success: true, data };
   } catch (err) {
     console.error('Exception in addBadWord:', err);
@@ -60,6 +74,9 @@ async function removeBadWord(guildId, word) {
       return false;
     }
 
+    // Invalidate cache immediately
+    cache.del(`bad_words_${guildId}`);
+
     return data && data.length > 0;
   } catch (err) {
     console.error('Exception in removeBadWord:', err);
@@ -77,3 +94,4 @@ function containsBadWords(message, badWords) {
 }
 
 module.exports = { getBadWords, addBadWord, removeBadWord, containsBadWords };
+

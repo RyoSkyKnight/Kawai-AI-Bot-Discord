@@ -13,7 +13,7 @@ module.exports = {
       .setTitle('📚 Bot Commands Help')
       .setDescription('Here are all available commands organized by category:')
       .addFields(
-        { name: '🤖 General', value: '`/ask` `/help` `/ping` `/profile` `/avatar` `/serverinfo` `/botinfo` `/uptime`', inline: false },
+        { name: '🤖 General', value: '`/ask` `/help` `/ping` `/profile` `/avatar` `/serverinfo` `/botinfo` `/uptime` `/clearhistory`', inline: false },
         { name: '🎮 Fun & Games', value: '`/roll` `/coinflip` `/8ball` `/joke` `/fact` `/trivia` `/meme` `/quote` `/choose`', inline: false },
         { name: '🛠️ Utilities', value: '`/translate` `/calculate` `/weather` `/wiki` `/urban` `/define` `/qr` `/shorten` `/reverse` `/ascii`', inline: false },
         { name: '🎬 Media', value: '`/movie` `/anime` `/gif` `/dog` `/cat` `/crypto`', inline: false },
@@ -22,7 +22,7 @@ module.exports = {
         { name: '🛡️ Moderation', value: '`/ban` `/unban` `/kick` `/timeout` `/warn` `/clear` `/lock` `/unlock` `/slowmode` `/setautomute` `/setbadwordmute`', inline: false },
         { name: '🔇 Auto-Mute', value: '`/setautomute` `/removeautomute` `/setbadwordmute` `/removebadwordmute` `/addbadword` `/removebadword` `/listbadwords`', inline: false },
         { name: '🎭 Roles', value: '`/addrole` `/removerole` `/createrole` `/deleterole`', inline: false },
-        { name: '⚙️ Server Setup', value: '`/setwelcome` `/setgoodbye` `/autorole` `/setlog`', inline: false }
+        { name: '⚙️ Server Setup', value: '`/setwelcome` `/setgoodbye` `/autorole` `/setlog` `/setaskchannel` `/removeaskchannel`', inline: false }
       )
       .setFooter({ text: 'Use /command to execute any command' })
       .setTimestamp();
