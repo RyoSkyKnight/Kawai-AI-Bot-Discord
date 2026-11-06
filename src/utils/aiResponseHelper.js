@@ -120,7 +120,7 @@ function buildModernActionRows({
   const rows = [];
   const controlButtons = [];
 
-  // Paginator buttons if more than 1 page
+  // Paginator buttons ONLY if more than 1 page
   if (totalPages > 1) {
     controlButtons.push(
       new ButtonBuilder()
@@ -145,18 +145,7 @@ function buildModernActionRows({
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(pageIndex === totalPages - 1 || isProcessing)
     );
-  }
 
-  // Delete button
-  controlButtons.push(
-    new ButtonBuilder()
-      .setCustomId(`ai_delete_${uniqueId}`)
-      .setLabel('Delete')
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(isProcessing)
-  );
-
-  if (controlButtons.length > 0) {
     rows.push(new ActionRowBuilder().addComponents(controlButtons));
   }
 

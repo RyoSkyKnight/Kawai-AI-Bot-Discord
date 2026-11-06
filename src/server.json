@@ -33,50 +33,50 @@
   ],
   "categories": [
     {
-      "name": "📌 INFORMATION",
+      "name": "INFORMATION",
       "access": "public",
       "readonly": true,
       "channels": [
-        { "name": "welcome", "topic": "Selamat datang di server! Sambut member baru di sini." },
-        { "name": "rules", "topic": "Tata tertib dan peraturan server yang wajib dipatuhi (ID & EN)." },
-        { "name": "announcements", "topic": "Pengumuman dan info update resmi server." },
-        { "name": "pick-roles", "access": "verified", "topic": "Pilih role game dan bahasa favoritmu." }
+        { "name": "welcome", "topic": "Welcome to the server. Greet new members here." },
+        { "name": "rules", "topic": "Server rules and guidelines (ID & EN)." },
+        { "name": "announcements", "topic": "Official server announcements." },
+        { "name": "pick-roles", "access": "verified", "topic": "Select your game and language roles." }
       ]
     },
     {
-      "name": "✅ VERIFICATION",
+      "name": "VERIFICATION",
       "access": "unverified",
       "readonly": true,
       "channels": [
-        { "name": "verification", "topic": "Setujui rules untuk membuka akses ke seluruh channel server." }
+        { "name": "verification", "topic": "Verify to unlock community channels." }
       ]
     },
     {
-      "name": "💬 COMMUNITY",
+      "name": "COMMUNITY",
       "access": "verified",
       "channels": [
-        { "name": "general", "topic": "Tempat ngobrol santai bebas seputar apa saja." },
-        { "name": "media", "topic": "Share foto, meme, video, karya, atau gameplay." },
-        { "name": "bot-commands", "topic": "Channel khusus menjalankan command bot (AI, utilitas, musik)." }
+        { "name": "general", "topic": "General chat." },
+        { "name": "media", "topic": "Share photos, clips, and media." },
+        { "name": "bot-commands", "topic": "Channel for bot commands." }
       ]
     },
     {
-      "name": "🎮 GAMING",
+      "name": "GAMING",
       "access": "verified",
       "channels": [
-        { "name": "gaming-lounge", "topic": "Diskusi game, strategi, update patch, dan rekomendasi game." },
-        { "name": "looking-for-group", "topic": "Cari teman mabar Mobile Legends, Minecraft, Roblox, Valorant, dll." }
+        { "name": "gaming-lounge", "topic": "Gaming discussions, updates, and chat." },
+        { "name": "looking-for-group", "topic": "Find teammates for Mobile Legends, Minecraft, Roblox, Valorant, etc." }
       ]
     },
     {
-      "name": "🔞 AGE RESTRICTED (18+)",
+      "name": "AGE RESTRICTED (18+)",
       "access": "verified",
       "channels": [
-        { "name": "mature-18plus", "nsfw": true, "topic": "Channel khusus 18+ (Age-Restricted oleh Discord). Patuhi pedoman komunitas." }
+        { "name": "mature-18plus", "nsfw": true, "topic": "Age-restricted channel (18+). Adhere to community guidelines." }
       ]
     },
     {
-      "name": "🔊 VOICE",
+      "name": "VOICE",
       "access": "verified",
       "music": true,
       "channels": [
@@ -86,11 +86,11 @@
       ]
     },
     {
-      "name": "🛡️ STAFF",
+      "name": "STAFF",
       "access": "staff",
       "channels": [
-        { "name": "staff-chat", "topic": "Koordinasi tim admin dan moderator." },
-        { "name": "mod-logs", "topic": "Log otomatis aksi moderasi bot (ban, kick, warn, timeout)." }
+        { "name": "staff-chat", "topic": "Staff discussion." },
+        { "name": "mod-logs", "topic": "Automated moderation logs." }
       ]
     }
   ]

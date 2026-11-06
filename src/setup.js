@@ -235,43 +235,43 @@ async function run() {
       await safe('kirim peraturan server', async () => {
         const rulesIdEmbed = new EmbedBuilder()
           .setColor('#E74C3C')
-          .setTitle('📜 TATA TERTIB SERVER • RYO AND THE GANK (ID)')
+          .setTitle('TATA TERTIB SERVER • RYO AND THE GANK (ID)')
           .setDescription(
-            'Selamat datang di **Ryo And The Gank**! Demi menjaga kenyamanan dan ketertiban bersama, semua member wajib mematuhi aturan berikut:\n\n' +
-            '**1. 🤝 Saling Menghormati**\n' +
-            'Dilarang melakukan bullying, pelecehan, ujaran kebencian, atau diskriminasi (SARA). Jaga etika obrolan baik di text maupun voice chat.\n\n' +
-            '**2. 🚫 Dilarang Spamming**\n' +
-            'Dilarang melakukan spam chat, emoji berlebih, soundboard mengganggu, atau tag massal (@everyone / @here) tanpa kepentingan penting.\n\n' +
-            '**3. 📌 Gunakan Channel Sesuai Fungsinya**\n' +
-            'Ngobrol santai di <#general>, cari tim mabar di <#gaming-lounge> / <#looking-for-group>, dan gunakan command di <#bot-commands>.\n\n' +
-            '**4. 📢 Dilarang Promosi Liar (No Self-Promo)**\n' +
-            'Dilarang membagikan link invite server lain, jualan, atau promosi di channel publik maupun melalui Direct Message (DM) tanpa izin staff.\n\n' +
-            '**5. 🛡️ Keamanan & Privasi**\n' +
-            'Dilarang menyebarkan data pribadi orang lain (doxxing), tautan phishing, malware, atau konten ilegal. Konten dewasa hanya di channel berlabel NSFW.\n\n' +
-            '**6. ⚖️ Keputusan Staff**\n' +
-            'Keputusan admin dan moderator bersifat mutlak. Jika kamu menemukan pelanggaran, segera laporkan ke tim staff.'
+            'Selamat datang di **Ryo And The Gank**! Demi menjaga kenyamanan bersama, mohon patuhi aturan berikut:\n\n' +
+            '**1. Saling Menghormati**\n' +
+            'Dilarang melakukan bullying, pelecehan, ujaran kebencian, atau diskriminasi (SARA). Jaga etika obrolan.\n\n' +
+            '**2. Dilarang Spam**\n' +
+            'Dilarang melakukan spam chat, soundboard berulang, atau tag massal (@everyone / @here).\n\n' +
+            '**3. Gunakan Channel Sesuai Tempatnya**\n' +
+            'Ngobrol di <#general>, cari tim mabar di <#gaming-lounge> / <#looking-for-group>, dan jalankan command di <#bot-commands>.\n\n' +
+            '**4. Dilarang Promosi Liar**\n' +
+            'Dilarang membagikan link invite server lain atau promosi tanpa izin staff.\n\n' +
+            '**5. Keamanan & Privasi**\n' +
+            'Dilarang menyebarkan data pribadi orang lain (doxxing), link phising, atau file berbahaya.\n\n' +
+            '**6. Keputusan Staff**\n' +
+            'Keputusan admin dan moderator bersifat mutlak. Laporkan pelanggaran ke staff.'
           )
-          .setFooter({ text: 'Ryo And The Gank • Community Guidelines (ID)' });
+          .setFooter({ text: 'Ryo And The Gank • Community Guidelines' });
 
         const rulesEnEmbed = new EmbedBuilder()
           .setColor('#3498DB')
-          .setTitle('📜 SERVER RULES • RYO AND THE GANK (EN)')
+          .setTitle('SERVER RULES • RYO AND THE GANK (EN)')
           .setDescription(
-            'Welcome to **Ryo And The Gank**! To ensure a friendly, safe, and enjoyable space for everyone, please respect the following guidelines:\n\n' +
-            '**1. 🤝 Be Respectful**\n' +
-            'Harassment, hate speech, bullying, toxicity, and discrimination of any kind are strictly prohibited. Treat all members with respect.\n\n' +
-            '**2. 🚫 No Spamming**\n' +
-            'Avoid spamming messages, excessive emojis, soundboard trolling, or unnecessary mass mentions (@everyone / @here).\n\n' +
-            '**3. 📌 Use Appropriate Channels**\n' +
-            'Keep discussions relevant to their channels: casual chat in <#general>, gaming in <#gaming-lounge>, and bot commands in <#bot-commands>.\n\n' +
-            '**4. 📢 No Unauthorized Advertising**\n' +
-            'Do not post invite links to other Discord servers, personal promotions, or commercial sales in public channels or member DMs without staff approval.\n\n' +
-            '**5. 🛡️ Safety & Privacy**\n' +
-            'Do not share malicious links, malware, illegal content, or personal data (doxxing). Mature topics are strictly restricted to designated NSFW channels.\n\n' +
-            '**6. ⚖️ Follow Staff & Discord ToS**\n' +
-            'Always adhere to the Discord Terms of Service. Staff decisions are final. Report any rule violations to the moderation team.'
+            'Welcome to **Ryo And The Gank**! Please respect the following guidelines:\n\n' +
+            '**1. Be Respectful**\n' +
+            'Harassment, hate speech, bullying, toxicity, and discrimination are strictly prohibited.\n\n' +
+            '**2. No Spamming**\n' +
+            'Avoid spamming messages, soundboard trolling, or unnecessary mass mentions (@everyone / @here).\n\n' +
+            '**3. Use Appropriate Channels**\n' +
+            'Keep discussions relevant: chat in <#general>, gaming in <#gaming-lounge>, and bot commands in <#bot-commands>.\n\n' +
+            '**4. No Unauthorized Advertising**\n' +
+            'Do not post invite links to other Discord servers or self-promote without staff approval.\n\n' +
+            '**5. Safety & Privacy**\n' +
+            'Do not share malicious links, malware, illegal material, or personal data (doxxing).\n\n' +
+            '**6. Follow Staff & Discord ToS**\n' +
+            'Always adhere to Discord Terms of Service. Staff decisions are final.'
           )
-          .setFooter({ text: 'Ryo And The Gank • Community Guidelines (EN)' })
+          .setFooter({ text: 'Ryo And The Gank • Community Guidelines' })
           .setTimestamp();
 
         await rulesChannel.send({ embeds: [rulesIdEmbed, rulesEnEmbed] });

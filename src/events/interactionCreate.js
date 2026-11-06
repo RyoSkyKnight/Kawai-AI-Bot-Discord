@@ -3,6 +3,7 @@ module.exports = {
   async execute(interaction) {
     // Handle Button Interactions (Verification & Role Toggle)
     if (interaction.isButton()) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
       const customId = interaction.customId;
 
       // 1. Member Verification
@@ -15,17 +16,15 @@ module.exports = {
         );
 
         if (!verifiedRole) {
-          return interaction.reply({
-            content: 'The **Member Kesayangan** role was not found on this server. Please contact staff.',
-            ephemeral: true,
+          return interaction.editReply({
+            content: 'The Member Kesayangan role was not found on this server. Please contact staff.',
           });
         }
 
         const member = interaction.member;
         if (member.roles.cache.has(verifiedRole.id)) {
-          return interaction.reply({
+          return interaction.editReply({
             content: 'You are already verified.',
-            ephemeral: true,
           });
         }
 
@@ -34,15 +33,13 @@ module.exports = {
           if (unverifiedRole && member.roles.cache.has(unverifiedRole.id)) {
             await member.roles.remove(unverifiedRole);
           }
-          return interaction.reply({
-            content: 'Verification successful! Welcome to **Ryo And The Gank**. All community channels are now unlocked.',
-            ephemeral: true,
+          return interaction.editReply({
+            content: 'Verification successful! Welcome to Ryo And The Gank. All community channels are now unlocked.',
           });
         } catch (err) {
           console.error('Error in verification button:', err);
-          return interaction.reply({
+          return interaction.editReply({
             content: `Verification failed: ${err.message}. Please ensure the bot role is positioned above the member role.`,
-            ephemeral: true,
           });
         }
       }
@@ -55,9 +52,8 @@ module.exports = {
         );
 
         if (!role) {
-          return interaction.reply({
-            content: `Role **${roleName}** was not found on this server.`,
-            ephemeral: true,
+          return interaction.editReply({
+            content: `Role ${roleName} was not found on this server.`,
           });
         }
 
@@ -67,22 +63,19 @@ module.exports = {
         try {
           if (hasRole) {
             await member.roles.remove(role);
-            return interaction.reply({
-              content: `Role **${role.name}** has been removed.`,
-              ephemeral: true,
+            return interaction.editReply({
+              content: `Role ${role.name} has been removed.`,
             });
           } else {
             await member.roles.add(role);
-            return interaction.reply({
-              content: `Role **${role.name}** has been added.`,
-              ephemeral: true,
+            return interaction.editReply({
+              content: `Role ${role.name} has been added.`,
             });
           }
         } catch (err) {
           console.error('Error toggling role:', err);
-          return interaction.reply({
-            content: `Failed to update role. Please ensure the bot role is positioned above **${role.name}** in Server Settings.`,
-            ephemeral: true,
+          return interaction.editReply({
+            content: `Failed to update role. Please ensure the bot role is positioned above ${role.name} in Server Settings.`,
           });
         }
       }

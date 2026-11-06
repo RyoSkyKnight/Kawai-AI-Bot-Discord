@@ -111,11 +111,11 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
   const toneAndLengthGuideline = USE_SHORT_RESPONSE
     ? `\n\nGUIDELINES:
 - LANGUAGE: Always match the language the user speaks in. If asked in Indonesian, answer in natural Indonesian. If asked in English, answer in English.
-- EMOJIS: Strictly minimal (0 to 1 subtle emoji at most). Never spam emojis.
+- EMOJIS: Do NOT use emojis. Keep responses completely free of emojis.
 - LENGTH & STYLE: Keep answers concise, clear, and direct in 1-3 sentences without filler.`
     : `\n\nGUIDELINES:
 - LANGUAGE ADAPTATION: Always reply in the EXACT language used by the user in their prompt. If the user writes in Indonesian, respond naturally and fluently in Indonesian. If in English, respond in English. If in another language, adapt accordingly.
-- EMOJIS: Strictly minimize emoji usage. Use at most 0 to 1 subtle emoji only when appropriate. Never use emoji walls or spam emojis.
+- EMOJIS: Do NOT use emojis under any circumstances. Keep all responses clean, professional, and free of emojis.
 - STYLE & TONE: Clear, helpful, natural, and direct. Avoid rambling, unnecessary apologies, robotic greetings, or roleplay text (*giggles*, *blushes*).
 - For casual chat: 1-3 concise, engaging sentences.
 - For technical explanations or tutorials: structured, clean, and easy to read.
