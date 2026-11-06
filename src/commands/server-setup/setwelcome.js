@@ -1,5 +1,5 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getGuildSettings, updateGuildSettings } = require('../../services/guildSettings');
+const { updateGuildSettings } = require('../../services/guildSettings');
 
 module.exports = {
   data: {
@@ -13,38 +13,30 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage server!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage this server.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+      await interaction.reply({ content: 'Missing ManageGuild permission.', ephemeral: true });
       return;
     }
 
     await interaction.deferReply();
 
     const channel = interaction.options.getChannel('channel');
-    const message = interaction.options.getString('message') || 'Welcome {user} to {server}!';
+    const message = interaction.options.getString('message') || 'Welcome to {server}, {user}!';
 
     try {
-      const success = await updateGuildSettings(interaction.guild.id, {
+      await updateGuildSettings(interaction.guild.id, {
         welcome_channel: channel.id,
         welcome_message: message
       });
 
-      if (!success) {
-        await interaction.editReply({ content: '❌ Failed to save welcome settings to database!' });
-        return;
-      }
-
-      const settings = await getGuildSettings(interaction.guild.id);
-      console.log('Saved settings verification:', settings);
-
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Welcome System Configured')
+        .setColor('#3498DB')
+        .setTitle('Welcome System Configured')
         .addFields(
           { name: 'Channel', value: `<#${channel.id}>`, inline: true },
           { name: 'Message', value: message, inline: false }
@@ -55,7 +47,7 @@ module.exports = {
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Set welcome error:', error);
-      await interaction.editReply({ content: '❌ An error occurred while configuring welcome system!' });
+      await interaction.editReply({ content: 'An error occurred while configuring the welcome system.' });
     }
   }
 };

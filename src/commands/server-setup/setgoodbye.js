@@ -13,13 +13,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage server!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage this server.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+      await interaction.reply({ content: 'Missing ManageGuild permission.', ephemeral: true });
       return;
     }
 
@@ -32,8 +32,8 @@ module.exports = {
     });
 
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Goodbye System Configured')
+      .setColor('#E74C3C')
+      .setTitle('Goodbye System Configured')
       .addFields(
         { name: 'Channel', value: `<#${channel.id}>`, inline: true },
         { name: 'Message', value: message, inline: false }
