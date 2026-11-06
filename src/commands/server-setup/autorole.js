@@ -12,22 +12,46 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage roles!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage roles.", ephemeral: true });
+      return;
+    }
+
+    const botMember = interaction.guild.members.me;
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      await interaction.reply({ content: 'Bot is missing Manage Roles permission.', ephemeral: true });
       return;
     }
 
     const role = interaction.options.getRole('role');
+
+    if (role.position >= botMember.roles.highest.position) {
+      await interaction.reply({
+        content: "Cannot assign a role equal to or higher than the bot's highest role.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (role.managed) {
+      await interaction.reply({
+        content: 'Cannot assign an integration or managed role.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await interaction.deferReply();
 
     await updateGuildSettings(interaction.guild.id, {
       auto_role: role.id
     });
 
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Auto Role Configured')
+      .setColor('#3498DB')
+      .setTitle('Auto Role Configured')
       .setDescription(`New members will automatically receive the ${role} role.`)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
   }
 };

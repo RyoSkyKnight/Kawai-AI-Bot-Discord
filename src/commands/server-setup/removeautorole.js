@@ -9,13 +9,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage roles!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage roles.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({ content: '❌ Missing ManageRoles permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Roles permission.', ephemeral: true });
       return;
     }
 
@@ -23,6 +23,6 @@ module.exports = {
       auto_role: null
     });
 
-    await interaction.reply({ content: '✅ Auto role has been disabled!', ephemeral: true });
+    await interaction.reply({ content: 'Auto role has been disabled.', ephemeral: true });
   }
 };

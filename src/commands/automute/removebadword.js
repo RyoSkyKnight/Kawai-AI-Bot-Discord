@@ -12,13 +12,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage bad words!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage bad words.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -29,13 +29,13 @@ module.exports = {
     const success = await removeBadWord(interaction.guild.id, word);
 
     if (!success) {
-      await interaction.editReply({ content: '❌ Word not found in the filter!' });
+      await interaction.editReply({ content: 'Word not found in the filter.' });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Bad Word Removed')
+      .setColor('#3498DB')
+      .setTitle('Bad Word Removed')
       .setDescription(`The word "**${word}**" has been removed from the filter.`)
       .setTimestamp();
 

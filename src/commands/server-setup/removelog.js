@@ -9,13 +9,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage server!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage this server.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Server permission.', ephemeral: true });
       return;
     }
 
@@ -23,6 +23,6 @@ module.exports = {
       log_channel: null
     });
 
-    await interaction.reply({ content: '✅ Logging has been disabled!', ephemeral: true });
+    await interaction.reply({ content: 'Logging has been disabled.', ephemeral: true });
   }
 };

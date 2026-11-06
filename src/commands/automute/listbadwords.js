@@ -9,13 +9,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to view bad words!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to view bad words.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -24,15 +24,15 @@ module.exports = {
     const badWords = await getBadWords(interaction.guild.id);
 
     if (badWords.length === 0) {
-      await interaction.editReply({ content: 'No bad words in the filter. Use `/addbadword` to add some!' });
+      await interaction.editReply({ content: 'No bad words in the filter. Use `/addbadword` to add some.' });
       return;
     }
 
     const wordList = badWords.map((bw, i) => `${i + 1}. **${bw.word}**`).join('\n');
 
     const embed = new EmbedBuilder()
-      .setColor('#FF0000')
-      .setTitle('🚫 Bad Words List')
+      .setColor('#3498DB')
+      .setTitle('Bad Words List')
       .setDescription(wordList.substring(0, 4096))
       .setFooter({ text: `Total: ${badWords.length} words` })
       .setTimestamp();

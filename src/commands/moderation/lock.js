@@ -11,13 +11,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage channels!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage channels.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: '❌ Missing ManageChannels permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Channels permission.', ephemeral: true });
       return;
     }
 
@@ -27,14 +27,14 @@ module.exports = {
         SendMessages: false
       });
       const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle('🔒 Channel Locked')
+        .setColor('#E74C3C')
+        .setTitle('Channel Locked')
         .setDescription(`This channel has been locked.\n**Reason:** ${reason}`)
         .setFooter({ text: `Locked by ${interaction.user.tag}` })
         .setTimestamp();
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to lock channel!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to lock channel.', ephemeral: true });
     }
   }
 };

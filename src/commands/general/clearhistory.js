@@ -13,16 +13,16 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(randomColor)
-        .setTitle('🧹 History Cleared!')
-        .setDescription('Your AI conversation history has been reset! From our next chat, we will start with a fresh memory. ✨')
-        .setFooter({ text: 'Kawai AI Bot' })
+        .setTitle('History Cleared')
+        .setDescription('Your AI conversation history has been reset. Next chat will start with a fresh context.')
+        .setFooter({ text: 'Cutie AI' })
         .setTimestamp();
 
       await interaction.reply({ embeds: [embed], ephemeral: true });
     } catch (error) {
       console.error('Error clearing conversation history:', error);
       await interaction.reply({
-        content: '❌ Failed to clear conversation history. Please try again later.',
+        content: 'Failed to clear conversation history. Please try again later.',
         ephemeral: true,
       });
     }

@@ -113,8 +113,8 @@ const tools = {
       await logModAction(interaction.guild.id, 'warn', interaction.user.id, user.id, args.reason);
 
       const embed = new EmbedBuilder()
-        .setColor('#FFFF00')
-        .setTitle('⚠️ User Warned (via /ask)')
+        .setColor('#FFA500')
+        .setTitle('User Warned (via Cutie AI)')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -163,8 +163,8 @@ const tools = {
       await clearWarnings(interaction.guild.id, user.id);
 
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Warnings Cleared (via /ask)')
+        .setColor('#3498DB')
+        .setTitle('Warnings Cleared (via Cutie AI)')
         .setDescription(`All warnings for ${user.tag} have been cleared.`)
         .setFooter({ text: `Cleared by ${interaction.user.tag}` })
         .setTimestamp();
@@ -216,7 +216,7 @@ const tools = {
 
       const embed = new EmbedBuilder()
         .setColor('#FFA500')
-        .setTitle('⏰ User Timed Out (via /ask)')
+        .setTitle('User Timed Out (via Cutie AI)')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Duration', value: args.duration, inline: true },
@@ -268,7 +268,7 @@ const tools = {
 
       const embed = new EmbedBuilder()
         .setColor('#FFA500')
-        .setTitle('👢 User Kicked (via /ask)')
+        .setTitle('User Kicked (via Cutie AI)')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -320,8 +320,8 @@ const tools = {
       await logModAction(interaction.guild.id, 'ban', interaction.user.id, user.id, reason);
 
       const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle('🔨 User Banned (via /ask)')
+        .setColor('#E74C3C')
+        .setTitle('User Banned (via Cutie AI)')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -798,7 +798,7 @@ const tools = {
       const timeStr = formatDuration(ms, 'id');
 
       setTimeout(async () => {
-        const alertContent = `⏰ <@${user.id}> **Pengingat / Timer (${timeStr}):**\n${reminderMsg}`;
+        const alertContent = `<@${user.id}> **Reminder / Timer (${timeStr}):**\n${reminderMsg}`;
         let sent = false;
         if (channel && channel.send) {
           try {
@@ -815,7 +815,7 @@ const tools = {
 
       return {
         ok: true,
-        message: `Pengingat / timer berhasil disetel untuk ${timeStr}. Catatan: "${reminderMsg}".`,
+        message: `Reminder / timer set for ${timeStr}. Note: "${reminderMsg}".`,
       };
     },
   },
@@ -871,7 +871,7 @@ const tools = {
         return { ok: false, message: 'Berikan minimal 2 opsi untuk dipilih!' };
       }
       const chosen = opts[Math.floor(Math.random() * opts.length)];
-      return { ok: true, chosen, allOptions: opts, message: `Dari pilihan (${opts.join(', ')}), pilihanku adalah: ${chosen}! ✨` };
+      return { ok: true, chosen, allOptions: opts, message: `From the choices (${opts.join(', ')}), my pick is: ${chosen}.` };
     },
   },
 
@@ -887,7 +887,7 @@ const tools = {
     },
     async handler() {
       const isHeads = Math.random() < 0.5;
-      const result = isHeads ? 'Heads (Gambar 👑)' : 'Tails (Angka ⚪)';
+      const result = isHeads ? 'Heads' : 'Tails';
       return { ok: true, result, isHeads };
     },
   },
@@ -910,7 +910,7 @@ const tools = {
     async handler(interaction, args) {
       const sides = Math.max(2, Math.min(parseInt(args.sides, 10) || 6, 1000));
       const roll = Math.floor(Math.random() * sides) + 1;
-      return { ok: true, roll, sides, message: `Hasil lemparan dadu ${sides} sisi: ${roll} 🎲` };
+      return { ok: true, roll, sides, message: `Dice roll (${sides} sides): ${roll}` };
     },
   },
 
@@ -953,10 +953,10 @@ const tools = {
 
       const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
       const embed = new EmbedBuilder()
-        .setColor('#F39C12')
-        .setTitle('📊 Polling')
+        .setColor('#3498DB')
+        .setTitle('Poll')
         .setDescription(`**${args.question}**\n\n` + opts.map((opt, i) => `${numberEmojis[i]} ${opt}`).join('\n'))
-        .setFooter({ text: `Dibuat oleh ${interaction.user?.username || 'User'}` })
+        .setFooter({ text: `Created by ${interaction.user?.username || 'User'}` })
         .setTimestamp();
 
       try {
@@ -1020,7 +1020,7 @@ const tools = {
 
       if (action === 'list') {
         if (todos.length === 0) {
-          return { ok: true, message: 'To-do list kamu saat ini masih kosong! 🎉', todos: [] };
+          return { ok: true, message: 'To-do list kamu saat ini masih kosong.', todos: [] };
         }
         const formatted = todos.map((t, idx) => `${idx + 1}. ${t}`).join('\n');
         return {
@@ -1052,7 +1052,7 @@ const tools = {
 
       if (action === 'clear') {
         state.userTodos.set(userId, []);
-        return { ok: true, message: 'Semua to-do list kamu telah dibersihkan! 🗑️' };
+        return { ok: true, message: 'Semua to-do list kamu telah dibersihkan.' };
       }
 
       return { ok: false, message: `Aksi tidak dikenal: ${action}` };

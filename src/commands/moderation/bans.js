@@ -8,13 +8,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to view bans!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to view bans.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: '❌ Missing BanMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Ban Members permission.', ephemeral: true });
       return;
     }
 
@@ -24,7 +24,7 @@ module.exports = {
       const bans = await interaction.guild.bans.fetch();
 
       if (bans.size === 0) {
-        await interaction.editReply({ content: 'No banned users found!' });
+        await interaction.editReply({ content: 'No banned users found.' });
         return;
       }
 
@@ -33,14 +33,14 @@ module.exports = {
       ).join('\n\n');
 
       const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle(`🔨 Banned Users (${bans.size})`)
+        .setColor('#E74C3C')
+        .setTitle(`Banned Users (${bans.size})`)
         .setDescription(banList.substring(0, 4096))
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      await interaction.editReply({ content: '❌ Failed to fetch ban list!' });
+      await interaction.editReply({ content: 'Failed to fetch ban list.' });
     }
   }
 };

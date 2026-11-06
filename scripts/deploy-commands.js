@@ -10,7 +10,9 @@ for (const category of fs.readdirSync(commandsDir)) {
   const categoryDir = path.join(commandsDir, category);
   for (const file of fs.readdirSync(categoryDir).filter(f => f.endsWith('.js'))) {
     const command = require(path.join(categoryDir, file));
-    commands.push(command.data);
+    if (command.data) {
+      commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
+    }
   }
 }
 
@@ -25,7 +27,7 @@ const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
       { body: commands }
     );
 
-    console.log(`✅ Successfully reloaded ${commands.length} application (/) commands globally.`);
+    console.log(`Successfully reloaded ${commands.length} application (/) commands globally.`);
   } catch (error) {
     console.error('Error registering commands:', error);
   }

@@ -9,13 +9,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to view mod stats!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to view mod stats.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -31,7 +31,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
-      .setTitle('📊 Moderation Statistics')
+      .setTitle('Moderation Statistics')
       .setDescription(
         Object.entries(stats).length > 0
           ? Object.entries(stats).map(([action, count]) => `**${action}:** ${count}`).join('\n')

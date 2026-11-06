@@ -12,28 +12,30 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage server!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage this server.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: '❌ Missing ManageGuild permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Server permission.', ephemeral: true });
       return;
     }
 
     const channel = interaction.options.getChannel('channel');
+
+    await interaction.deferReply();
 
     await updateGuildSettings(interaction.guild.id, {
       log_channel: channel.id
     });
 
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Logging Channel Set')
+      .setColor('#3498DB')
+      .setTitle('Logging Channel Configured')
       .setDescription(`Moderation logs will be sent to <#${channel.id}>`)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
   }
 };

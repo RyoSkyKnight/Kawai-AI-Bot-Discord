@@ -15,13 +15,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to ban members!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to ban members.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: '❌ Missing BanMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Ban Members permission.', ephemeral: true });
       return;
     }
 
@@ -34,12 +34,12 @@ module.exports = {
 
       if (member) {
         if (member.roles.highest.position >= botMember.roles.highest.position) {
-          await interaction.reply({ content: '❌ I cannot ban this user due to role hierarchy!', ephemeral: true });
+          await interaction.reply({ content: 'Cannot ban this user due to role hierarchy.', ephemeral: true });
           return;
         }
 
         if (member.roles.highest.position >= interaction.member.roles.highest.position) {
-          await interaction.reply({ content: '❌ You cannot ban this user!', ephemeral: true });
+          await interaction.reply({ content: 'You cannot ban this user due to role hierarchy.', ephemeral: true });
           return;
         }
       }
@@ -48,8 +48,8 @@ module.exports = {
       await logModAction(interaction.guild.id, 'ban', interaction.user.id, user.id, reason);
 
       const logEmbed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle('🔨 User Banned')
+        .setColor('#E74C3C')
+        .setTitle('User Banned')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -60,7 +60,7 @@ module.exports = {
       await sendLog(interaction.guild, logEmbed);
       await interaction.reply({ embeds: [logEmbed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to ban user!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to ban user.', ephemeral: true });
     }
   }
 };

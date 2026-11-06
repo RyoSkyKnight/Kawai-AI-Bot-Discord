@@ -12,13 +12,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to view warnings!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to view warnings.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -26,13 +26,13 @@ module.exports = {
     const warnings = await getWarnings(interaction.guild.id, user.id);
 
     if (warnings.length === 0) {
-      await interaction.reply({ content: `${user.tag} has no warnings!`, ephemeral: true });
+      await interaction.reply({ content: `${user.tag} has no warnings.`, ephemeral: true });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setColor('#FFFF00')
-      .setTitle(`⚠️ Warnings for ${user.tag}`)
+      .setColor('#FFA500')
+      .setTitle(`Warnings for ${user.tag}`)
       .setDescription(warnings.map((w, i) =>
         `**${i + 1}.** ${w.reason}\n*By <@${w.moderator_id}> • <t:${Math.floor(new Date(w.created_at).getTime() / 1000)}:R>*`
       ).join('\n\n'))

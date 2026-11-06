@@ -14,13 +14,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage auto-mute settings!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage auto-mute settings.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -28,13 +28,13 @@ module.exports = {
     const duration = interaction.options.getString('duration');
 
     if (threshold < 3 || threshold > 20) {
-      await interaction.reply({ content: '❌ Threshold must be between 3 and 20 messages!', ephemeral: true });
+      await interaction.reply({ content: 'Threshold must be between 3 and 20 messages.', ephemeral: true });
       return;
     }
 
     const ms = parseDuration(duration);
     if (!ms || ms > 2419200000) {
-      await interaction.reply({ content: '❌ Invalid duration! Maximum is 28 days (28d).', ephemeral: true });
+      await interaction.reply({ content: 'Invalid duration. Maximum is 28 days (28d).', ephemeral: true });
       return;
     }
 
@@ -46,13 +46,13 @@ module.exports = {
     });
 
     if (!success) {
-      await interaction.editReply({ content: '❌ Failed to save auto-mute settings!' });
+      await interaction.editReply({ content: 'Failed to save auto-mute settings.' });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Auto-Mute for Spam Enabled')
+      .setColor('#3498DB')
+      .setTitle('Auto-Mute for Spam Enabled')
       .addFields(
         { name: 'Spam Threshold', value: `${threshold} messages in 5 seconds`, inline: true },
         { name: 'Mute Duration', value: duration, inline: true }

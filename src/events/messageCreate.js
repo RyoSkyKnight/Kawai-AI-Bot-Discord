@@ -169,7 +169,7 @@ module.exports = {
 
             const embed = new EmbedBuilder()
               .setColor('#FF0000')
-              .setTitle('🔇 User Auto-Muted (Spam)')
+              .setTitle('User Auto-Muted (Spam)')
               .addFields(
                 { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
                 { name: 'Duration', value: settings.spam_duration, inline: true },
@@ -203,7 +203,7 @@ module.exports = {
 
             const embed = new EmbedBuilder()
               .setColor('#FF0000')
-              .setTitle('🔇 User Auto-Muted (Bad Language)')
+              .setTitle('User Auto-Muted (Bad Language)')
               .addFields(
                 { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
                 { name: 'Duration', value: settings.badword_duration, inline: true },

@@ -12,20 +12,20 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage messages!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage messages.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      await interaction.reply({ content: '❌ Missing ManageMessages permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Messages permission.', ephemeral: true });
       return;
     }
 
     const amount = interaction.options.getInteger('amount');
     const targetUser = interaction.options.getUser('user');
     if (amount < 1 || amount > 100) {
-      await interaction.reply({ content: '❌ Please provide a number between 1 and 100!', ephemeral: true });
+      await interaction.reply({ content: 'Please provide a number between 1 and 100.', ephemeral: true });
       return;
     }
     await interaction.deferReply({ ephemeral: true });
@@ -35,9 +35,9 @@ module.exports = {
         ? messages.filter(msg => msg.author.id === targetUser.id)
         : messages;
       const deleted = await interaction.channel.bulkDelete(filteredMessages, true);
-      await interaction.editReply({ content: `✅ Deleted ${deleted.size} messages!` });
+      await interaction.editReply({ content: `Deleted ${deleted.size} messages.` });
     } catch (error) {
-      await interaction.editReply({ content: '❌ Failed to delete messages!' });
+      await interaction.editReply({ content: 'Failed to delete messages.' });
     }
   }
 };

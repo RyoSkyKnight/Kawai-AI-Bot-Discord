@@ -13,13 +13,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage auto-mute settings!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage auto-mute settings.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -27,7 +27,7 @@ module.exports = {
 
     const ms = parseDuration(duration);
     if (!ms || ms > 2419200000) {
-      await interaction.reply({ content: '❌ Invalid duration! Maximum is 28 days (28d).', ephemeral: true });
+      await interaction.reply({ content: 'Invalid duration. Maximum is 28 days (28d).', ephemeral: true });
       return;
     }
 
@@ -39,13 +39,13 @@ module.exports = {
     });
 
     if (!success) {
-      await interaction.editReply({ content: '❌ Failed to save bad word mute settings!' });
+      await interaction.editReply({ content: 'Failed to save bad word mute settings.' });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Auto-Mute for Bad Words Enabled')
+      .setColor('#3498DB')
+      .setTitle('Auto-Mute for Bad Words Enabled')
       .addFields(
         { name: 'Mute Duration', value: duration, inline: true }
       )

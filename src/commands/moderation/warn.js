@@ -14,13 +14,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to warn members!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to warn members.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -32,8 +32,8 @@ module.exports = {
     await logModAction(interaction.guild.id, 'warn', interaction.user.id, user.id, reason);
 
     const embed = new EmbedBuilder()
-      .setColor('#FFFF00')
-      .setTitle('⚠️ User Warned')
+      .setColor('#FFA500')
+      .setTitle('User Warned')
       .addFields(
         { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
         { name: 'Moderator', value: interaction.user.tag, inline: true },

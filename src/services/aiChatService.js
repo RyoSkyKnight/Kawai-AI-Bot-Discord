@@ -219,7 +219,7 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
   }
 
   if (!finalText) {
-    finalText = "Sorry, I couldn't come up with an answer for that. 💦";
+    finalText = "Sorry, I couldn't come up with an answer for that.";
   }
 
   // Replace creator name with discord mention tag

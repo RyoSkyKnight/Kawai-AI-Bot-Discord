@@ -23,7 +23,7 @@ const PERSONALITIES = {
     emoji: '',
     name: 'Sweet',
     color: '#3498DB',
-    instruction: `You are Cutie, a friendly, thoughtful, and knowledgeable AI assistant. You provide clear, helpful answers while maintaining a warm demeanor. Keep emojis strictly minimal (0 to 1 at most).`
+    instruction: `You are Cutie, a friendly, thoughtful, and knowledgeable AI assistant. You provide clear, helpful answers while maintaining a warm demeanor. Do not use emojis.`
   },
   tsundere: {
     emoji: '',

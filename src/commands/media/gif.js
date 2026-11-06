@@ -15,23 +15,28 @@ module.exports = {
     ],
   },
   async execute(interaction) {
+    if (!TENOR_API_KEY) {
+      await interaction.reply({ content: 'Tenor API key is not configured.', ephemeral: true });
+      return;
+    }
+
     await interaction.deferReply();
     try {
       const query = interaction.options.getString('query');
       const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=${TENOR_API_KEY}&limit=1`);
       const data = await response.json();
       if (!data.results || data.results.length === 0) {
-        await interaction.editReply({ content: '❌ No GIF found!' });
+        await interaction.editReply({ content: 'No GIF found.' });
         return;
       }
       const embed = new EmbedBuilder()
         .setColor('#FF6B6B')
-        .setTitle(`🎬 ${query}`)
+        .setTitle(query)
         .setImage(data.results[0].media_formats.gif.url)
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      await interaction.editReply({ content: '❌ Failed to fetch GIF!' });
+      await interaction.editReply({ content: 'Failed to fetch GIF.' });
     }
   },
 };

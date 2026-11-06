@@ -12,13 +12,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage nicknames!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage nicknames.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-      await interaction.reply({ content: '❌ Missing ManageNicknames permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Nicknames permission.', ephemeral: true });
       return;
     }
 
@@ -30,14 +30,14 @@ module.exports = {
       await member.setNickname(nickname);
 
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Nickname Changed')
+        .setColor('#3498DB')
+        .setTitle('Nickname Changed')
         .setDescription(`${user.tag}'s nickname has been ${nickname ? `changed to **${nickname}**` : 'reset'}.`)
         .setTimestamp();
 
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to change nickname!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to change nickname.', ephemeral: true });
     }
   }
 };

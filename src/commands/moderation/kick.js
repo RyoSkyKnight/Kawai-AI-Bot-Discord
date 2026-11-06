@@ -14,13 +14,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to kick members!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to kick members.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.KickMembers)) {
-      await interaction.reply({ content: '❌ Missing KickMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Kick Members permission.', ephemeral: true });
       return;
     }
 
@@ -31,12 +31,12 @@ module.exports = {
       const member = await interaction.guild.members.fetch(user.id);
 
       if (member.roles.highest.position >= botMember.roles.highest.position) {
-        await interaction.reply({ content: '❌ I cannot kick this user due to role hierarchy!', ephemeral: true });
+        await interaction.reply({ content: 'Cannot kick this user due to role hierarchy.', ephemeral: true });
         return;
       }
 
       if (member.roles.highest.position >= interaction.member.roles.highest.position) {
-        await interaction.reply({ content: '❌ You cannot kick this user!', ephemeral: true });
+        await interaction.reply({ content: 'You cannot kick this user due to role hierarchy.', ephemeral: true });
         return;
       }
 
@@ -45,7 +45,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor('#FFA500')
-        .setTitle('👢 User Kicked')
+        .setTitle('User Kicked')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -56,7 +56,7 @@ module.exports = {
       await sendLog(interaction.guild, embed);
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to kick user!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to kick user.', ephemeral: true });
     }
   }
 };

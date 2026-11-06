@@ -14,7 +14,7 @@ module.exports = {
         description: 'Choose a personality type',
         required: true,
         choices: Object.entries(PERSONALITIES).map(([key, value]) => ({
-          name: `${value.emoji} ${value.name}`,
+          name: value.name,
           value: key
         }))
       },
@@ -36,27 +36,27 @@ module.exports = {
     try {
       if (target) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-          return await interaction.editReply({ content: "❌ You don't have permission to change other users' personalities!", ephemeral: true });
+          return await interaction.editReply({ content: "You do not have permission to change other users' personalities.", ephemeral: true });
         }
         const success = await setUserPersonality(target.id, personalityType);
         if (!success) {
-          await interaction.editReply({ content: "❌ **Database Error!** Unable to save personality for the target user." });
+          await interaction.editReply({ content: "Unable to save personality for the target user." });
           return;
         }
-        await interaction.editReply({ content: `✅ Set ${target.username}'s personality to **${chosenPersonality.emoji} ${chosenPersonality.name}**!` });
+        await interaction.editReply({ content: `Set ${target.username}'s personality to **${chosenPersonality.name}**.` });
       } else {
         const success = await setUserPersonality(interaction.user.id, personalityType);
         if (!success) {
           await interaction.editReply({
-            content: `❌ **Database Error!** Unable to save personality preference.`
+            content: `Unable to save personality preference.`
           });
           return;
         }
 
         const embed = new EmbedBuilder()
           .setColor('#5865F2')
-          .setTitle('🎭 AI Personality Updated')
-          .setDescription(`Your personality has been set to **${chosenPersonality.emoji} ${chosenPersonality.name}**!`)
+          .setTitle('AI Personality Updated')
+          .setDescription(`Your personality has been set to **${chosenPersonality.name}**.`)
           .addFields({ name: 'System Prompt Preview', value: chosenPersonality.instruction })
           .setTimestamp();
 
@@ -64,7 +64,7 @@ module.exports = {
       }
     } catch (error) {
       console.error('Set personality error:', error);
-      await interaction.editReply({ content: '❌ An error occurred while setting personality!' });
+      await interaction.editReply({ content: 'An error occurred while setting personality.' });
     }
   }
 };

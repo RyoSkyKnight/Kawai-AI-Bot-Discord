@@ -23,23 +23,23 @@ module.exports = {
     const guildId = interaction.guildId;
 
     if (!guildId) {
-      await interaction.reply({ content: '❌ This command can only be used in a server.', ephemeral: true });
+      await interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true });
       return;
     }
 
     // Permission guard – ensure the user has admin or ManageGuild rights
     const memberPerms = interaction.memberPermissions || interaction.member?.permissions;
     if (!memberPerms || !(memberPerms.has(PermissionFlagsBits.Administrator) || memberPerms.has(PermissionFlagsBits.ManageGuild))) {
-      await interaction.reply({ content: '❌ You do not have permission to set the AI channel. Only admins or members with Manage Server permission can do this.', ephemeral: true });
+      await interaction.reply({ content: 'You do not have permission to set the AI channel. Only admins or members with Manage Server permission can do this.', ephemeral: true });
       return;
     }
 
     const success = await updateGuildSettings(guildId, { ask_channel_id: channel.id });
 
     if (success) {
-      await interaction.reply({ content: `✅ AI auto‑reply channel set to <#${channel.id}>.`, ephemeral: false });
+      await interaction.reply({ content: `AI auto-reply channel set to <#${channel.id}>.`, ephemeral: false });
     } else {
-      await interaction.reply({ content: '❌ Failed to update settings. Please try again later.', ephemeral: true });
+      await interaction.reply({ content: 'Failed to update settings. Please try again later.', ephemeral: true });
     }
   },
 };

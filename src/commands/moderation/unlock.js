@@ -11,13 +11,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage channels!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage channels.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({ content: '❌ Missing ManageChannels permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Channels permission.', ephemeral: true });
       return;
     }
 
@@ -27,15 +27,15 @@ module.exports = {
         SendMessages: null
       });
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('🔓 Channel Unlocked')
+        .setColor('#3498DB')
+        .setTitle('Channel Unlocked')
         .setDescription(`This channel has been unlocked.\n**Reason:** ${reason}`)
         .setFooter({ text: `Unlocked by ${interaction.user.tag}` })
         .setTimestamp();
 
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to unlock channel!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to unlock channel.', ephemeral: true });
     }
   }
 };

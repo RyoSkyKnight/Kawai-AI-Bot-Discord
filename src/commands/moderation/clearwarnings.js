@@ -12,13 +12,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({ content: '❌ You need Administrator permission to clear warnings!', ephemeral: true });
+      await interaction.reply({ content: 'You need Administrator permission to clear warnings.', ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({ content: '❌ Missing Administrator permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Administrator permission.', ephemeral: true });
       return;
     }
 
@@ -26,8 +26,8 @@ module.exports = {
 
     await clearWarnings(interaction.guild.id, user.id);
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Warnings Cleared')
+      .setColor('#3498DB')
+      .setTitle('Warnings Cleared')
       .setDescription(`All warnings for ${user.tag} have been cleared.`)
       .setFooter({ text: `Cleared by ${interaction.user.tag}` })
       .setTimestamp();

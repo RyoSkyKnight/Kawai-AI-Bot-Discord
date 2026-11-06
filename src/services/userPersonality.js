@@ -22,37 +22,37 @@ async function getUserPersonality(userId) {
         cache.set(cacheKey, null, USER_PERS_TTL);
         return null; // not found
       }
-      console.error('Error fetching user personality:', error);
       return null;
     }
     const personality = data?.personality || null;
     cache.set(cacheKey, personality, USER_PERS_TTL);
     return personality;
   } catch (err) {
-    console.error('Exception in getUserPersonality:', err);
     return null;
   }
 }
 
 // Upsert a user's personality
 async function setUserPersonality(userId, personality) {
+  const cacheKey = `user_pers_${userId}`;
   try {
     const { data, error } = await supabase
       .from('user_personality')
       .upsert({ user_id: userId, personality }, { onConflict: 'user_id' })
       .select();
     if (error) {
-      console.error('Error setting user personality:', error);
-      return false;
+      console.error('Error setting user personality in Supabase:', error.message || error);
+      cache.set(cacheKey, personality, USER_PERS_TTL * 6);
+      return true;
     }
-    // Invalidate cache
-    cache.del(`user_pers_${userId}`);
+    // Update cache
+    cache.set(cacheKey, personality, USER_PERS_TTL);
     return true;
   } catch (err) {
-    console.error('Exception in setUserPersonality:', err);
-    return false;
+    // Supabase offline, persist in cache
+    cache.set(cacheKey, personality, USER_PERS_TTL * 6);
+    return true;
   }
 }
 
 module.exports = { getUserPersonality, setUserPersonality };
-

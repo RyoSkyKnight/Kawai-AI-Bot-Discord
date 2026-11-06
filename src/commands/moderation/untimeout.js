@@ -12,13 +12,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to remove timeouts!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to remove timeouts.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      await interaction.reply({ content: '❌ Missing ModerateMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Moderate Members permission.', ephemeral: true });
       return;
     }
 
@@ -30,8 +30,8 @@ module.exports = {
       await member.timeout(null, reason);
 
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ Timeout Removed')
+        .setColor('#3498DB')
+        .setTitle('Timeout Removed')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -41,7 +41,7 @@ module.exports = {
 
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to remove timeout!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to remove timeout.', ephemeral: true });
     }
   }
 };

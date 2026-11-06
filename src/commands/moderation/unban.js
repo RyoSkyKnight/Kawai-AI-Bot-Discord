@@ -14,13 +14,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: "❌ You don't have permission to unban members!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to unban members.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-      await interaction.reply({ content: '❌ Missing BanMembers permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Ban Members permission.', ephemeral: true });
       return;
     }
 
@@ -32,8 +32,8 @@ module.exports = {
       await logModAction(interaction.guild.id, 'unban', interaction.user.id, userId, reason);
 
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('✅ User Unbanned')
+        .setColor('#3498DB')
+        .setTitle('User Unbanned')
         .addFields(
           { name: 'User ID', value: userId, inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
@@ -44,7 +44,7 @@ module.exports = {
       await sendLog(interaction.guild, embed);
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to unban user! Make sure the ID is correct.', ephemeral: true });
+      await interaction.reply({ content: 'Failed to unban user. Please verify the ID is correct.', ephemeral: true });
     }
   }
 };

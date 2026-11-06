@@ -13,13 +13,13 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      await interaction.reply({ content: "❌ You don't have permission to send announcements!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to send announcements.", ephemeral: true });
       return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      await interaction.reply({ content: '❌ Missing ManageMessages permission!', ephemeral: true });
+      await interaction.reply({ content: 'Bot is missing Manage Messages permission.', ephemeral: true });
       return;
     }
 
@@ -28,8 +28,8 @@ module.exports = {
     const pingEveryone = interaction.options.getBoolean('ping_everyone') || false;
 
     const embed = new EmbedBuilder()
-      .setColor('#FFD700')
-      .setTitle('📢 Announcement')
+      .setColor('#3498DB')
+      .setTitle('Announcement')
       .setDescription(message)
       .setFooter({ text: `Announced by ${interaction.user.tag}` })
       .setTimestamp();
@@ -40,9 +40,9 @@ module.exports = {
         embeds: [embed]
       });
 
-      await interaction.reply({ content: `✅ Announcement sent to <#${channel.id}>!`, ephemeral: true });
+      await interaction.reply({ content: `Announcement sent to <#${channel.id}>.`, ephemeral: true });
     } catch (error) {
-      await interaction.reply({ content: '❌ Failed to send announcement!', ephemeral: true });
+      await interaction.reply({ content: 'Failed to send announcement.', ephemeral: true });
     }
   }
 };
