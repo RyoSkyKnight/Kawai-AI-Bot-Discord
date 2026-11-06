@@ -21,7 +21,7 @@ module.exports = {
 
     if (state.activeAskUsers.has(userId)) {
       await interaction.reply({
-        content: '⏳ Kamu masih memiliki pertanyaan yang sedang diproses. Mohon tunggu sebentar ya!',
+        content: 'You already have a question being processed. Please wait a moment.',
         ephemeral: true,
       });
       return;
@@ -56,14 +56,13 @@ module.exports = {
         user: interaction.user,
         prompt,
         aiResult,
-        onRegenerate: executeAi,
       });
     } catch (error) {
       console.error('Error generating response in /ask:', error);
       if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ content: '❌ Terjadi kesalahan saat memproses jawaban. Silakan coba lagi.' }).catch(() => {});
+        await interaction.editReply({ content: 'An error occurred while processing your request. Please try again.' }).catch(() => {});
       } else {
-        await interaction.reply({ content: '❌ Terjadi kesalahan saat memproses jawaban.', ephemeral: true }).catch(() => {});
+        await interaction.reply({ content: 'An error occurred while processing your request.', ephemeral: true }).catch(() => {});
       }
     } finally {
       state.activeAskUsers.delete(userId);

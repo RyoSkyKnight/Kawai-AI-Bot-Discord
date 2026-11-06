@@ -110,15 +110,15 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
 
   const toneAndLengthGuideline = USE_SHORT_RESPONSE
     ? `\n\nGUIDELINES:
-- Keep answers very concise, sweet, and to the point in 1-3 sentences.
-- Match the user's language naturally (respond in Indonesian if asked in Indonesian, English if asked in English).
-- Avoid unnecessary filler, excessive roleplay actions (*giggles*, *blushes*), or repeating the user's prompt.`
-    : `\n\nGUIDELINES (High Quality & Balanced — Not "Too Much"):
-- Be helpful, clear, natural, and directly answer the question. Avoid rambling, long introductions, or unnecessary filler.
-- For casual chat or simple questions: respond concisely in 1-3 natural sentences.
-- For explanations or tutorials: provide clean, well-structured, easy-to-read points without over-explaining.
-- Match the user's language naturally (if user speaks Indonesian, respond fluently and casually in Indonesian; if English, in English).
-- Maintain your persona's charm naturally with 1-2 cute emojis (✨, 🌸, 💖) without excessive anime roleplay spam (*blushes*, *giggles*, repeating words).
+- LANGUAGE: Always match the language the user speaks in. If asked in Indonesian, answer in natural Indonesian. If asked in English, answer in English.
+- EMOJIS: Strictly minimal (0 to 1 subtle emoji at most). Never spam emojis.
+- LENGTH & STYLE: Keep answers concise, clear, and direct in 1-3 sentences without filler.`
+    : `\n\nGUIDELINES:
+- LANGUAGE ADAPTATION: Always reply in the EXACT language used by the user in their prompt. If the user writes in Indonesian, respond naturally and fluently in Indonesian. If in English, respond in English. If in another language, adapt accordingly.
+- EMOJIS: Strictly minimize emoji usage. Use at most 0 to 1 subtle emoji only when appropriate. Never use emoji walls or spam emojis.
+- STYLE & TONE: Clear, helpful, natural, and direct. Avoid rambling, unnecessary apologies, robotic greetings, or roleplay text (*giggles*, *blushes*).
+- For casual chat: 1-3 concise, engaging sentences.
+- For technical explanations or tutorials: structured, clean, and easy to read.
 - Do NOT repeat the user's question back to them.`;
 
   return `${pInfo.instruction}` +

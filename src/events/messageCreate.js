@@ -64,7 +64,7 @@ module.exports = {
 
     if (isDm || isMentioned || isAiChannel) {
       if (state.activeAskUsers.has(message.author.id)) {
-        await message.reply('⏳ Mohon tunggu respon sebelumnya selesai terlebih dahulu ya!').catch(() => {});
+        await message.reply('Please wait for the previous response to finish.').catch(() => {});
         return;
       }
 
@@ -79,7 +79,7 @@ module.exports = {
         }
 
         if (!prompt) {
-          await message.reply("Ya? Ada yang bisa Cutie bantu hari ini? (◕‿◕)♡").catch(() => {});
+          await message.reply("How can I help you today?").catch(() => {});
           return;
         }
 
@@ -107,7 +107,6 @@ module.exports = {
             user: message.author,
             prompt,
             aiResult,
-            onRegenerate: executeAi,
           });
         } else {
           const fallbackMsg = await message.reply({ content: '...' }).catch(() => null);
@@ -117,16 +116,15 @@ module.exports = {
               user: message.author,
               prompt,
               aiResult,
-              onRegenerate: executeAi,
             });
           }
         }
       } catch (error) {
         console.error('Auto-AI error:', error);
         if (replyMsg) {
-          await replyMsg.edit({ content: '❌ Terjadi kesalahan saat memproses jawaban AI.', embeds: [] }).catch(() => {});
+          await replyMsg.edit({ content: 'An error occurred while processing the AI response.', embeds: [] }).catch(() => {});
         } else {
-          await message.reply('❌ Terjadi kesalahan saat memproses jawaban AI.').catch(() => {});
+          await message.reply('An error occurred while processing the AI response.').catch(() => {});
         }
       } finally {
         state.activeAskUsers.delete(message.author.id);

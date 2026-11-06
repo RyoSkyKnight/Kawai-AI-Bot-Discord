@@ -1,0 +1,97 @@
+{
+  "gateByVerification": true,
+  "keyRoles": {
+    "staff": "Kacung Tercinta",
+    "verified": "Member Kesayangan",
+    "unverified": "Member Jelata"
+  },
+  "integrationRoles": ["Jockie Music"],
+  "roles": [
+    { "name": "Owner Imoet", "color": "#E91E63", "hoist": true, "permissions": ["Administrator"] },
+    {
+      "name": "Kacung Tercinta",
+      "color": "#9B59B6",
+      "hoist": true,
+      "permissions": [
+        "KickMembers", "BanMembers", "ModerateMembers", "ManageMessages", "ManageNicknames",
+        "ViewAuditLog", "MuteMembers", "DeafenMembers", "MoveMembers"
+      ]
+    },
+    { "name": "Content Creator", "color": "#F1C40F" },
+    { "name": "Member Kesayangan", "color": "#3498DB", "hoist": true },
+    { "name": "Member Jelata", "color": "#95A5A6" },
+    { "name": "Competitive Gamer", "color": "#E74C3C" },
+    { "name": "Casual Gamer", "color": "#2ECC71" },
+    { "name": "Mobile Legends", "color": "#1ABC9C", "mentionable": true },
+    { "name": "Minecraft", "color": "#1ABC9C", "mentionable": true },
+    { "name": "Roblox", "color": "#1ABC9C", "mentionable": true },
+    { "name": "Valorant", "color": "#1ABC9C", "mentionable": true },
+    { "name": "Other Games", "color": "#1ABC9C", "mentionable": true },
+    { "name": "Indonesian", "color": "#7F8C8D" },
+    { "name": "English", "color": "#7F8C8D" },
+    { "name": "Both Languages", "color": "#7F8C8D" }
+  ],
+  "categories": [
+    {
+      "name": "📌 INFORMATION",
+      "access": "public",
+      "readonly": true,
+      "channels": [
+        { "name": "welcome", "topic": "Selamat datang di server! Sambut member baru di sini." },
+        { "name": "rules", "topic": "Tata tertib dan peraturan server yang wajib dipatuhi (ID & EN)." },
+        { "name": "announcements", "topic": "Pengumuman dan info update resmi server." },
+        { "name": "pick-roles", "access": "verified", "topic": "Pilih role game dan bahasa favoritmu." }
+      ]
+    },
+    {
+      "name": "✅ VERIFICATION",
+      "access": "unverified",
+      "readonly": true,
+      "channels": [
+        { "name": "verification", "topic": "Setujui rules untuk membuka akses ke seluruh channel server." }
+      ]
+    },
+    {
+      "name": "💬 COMMUNITY",
+      "access": "verified",
+      "channels": [
+        { "name": "general", "topic": "Tempat ngobrol santai bebas seputar apa saja." },
+        { "name": "media", "topic": "Share foto, meme, video, karya, atau gameplay." },
+        { "name": "bot-commands", "topic": "Channel khusus menjalankan command bot (AI, utilitas, musik)." }
+      ]
+    },
+    {
+      "name": "🎮 GAMING",
+      "access": "verified",
+      "channels": [
+        { "name": "gaming-lounge", "topic": "Diskusi game, strategi, update patch, dan rekomendasi game." },
+        { "name": "looking-for-group", "topic": "Cari teman mabar Mobile Legends, Minecraft, Roblox, Valorant, dll." }
+      ]
+    },
+    {
+      "name": "🔞 AGE RESTRICTED (18+)",
+      "access": "verified",
+      "channels": [
+        { "name": "mature-18plus", "nsfw": true, "topic": "Channel khusus 18+ (Age-Restricted oleh Discord). Patuhi pedoman komunitas." }
+      ]
+    },
+    {
+      "name": "🔊 VOICE",
+      "access": "verified",
+      "music": true,
+      "channels": [
+        { "name": "General Voice", "type": "voice" },
+        { "name": "Gaming Voice", "type": "voice" },
+        { "name": "Music Room", "type": "voice" }
+      ]
+    },
+    {
+      "name": "🛡️ STAFF",
+      "access": "staff",
+      "channels": [
+        { "name": "staff-chat", "topic": "Koordinasi tim admin dan moderator." },
+        { "name": "mod-logs", "topic": "Log otomatis aksi moderasi bot (ban, kick, warn, timeout)." }
+      ]
+    }
+  ]
+}
