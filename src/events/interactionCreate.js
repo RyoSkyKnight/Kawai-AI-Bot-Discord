@@ -8,28 +8,40 @@ module.exports = {
 
       // 1. Member Verification
       if (customId === 'verify_member') {
-        const verifiedRole = interaction.guild?.roles.cache.find(
+        const memberKesayanganRole = interaction.guild?.roles.cache.find(
           r => r.name.toLowerCase() === 'member kesayangan'
+        );
+        const verifiedRole = interaction.guild?.roles.cache.find(
+          r => r.name.toLowerCase() === 'verified'
         );
         const unverifiedRole = interaction.guild?.roles.cache.find(
           r => r.name.toLowerCase() === 'member jelata'
         );
 
-        if (!verifiedRole) {
+        if (!memberKesayanganRole && !verifiedRole) {
           return interaction.editReply({
-            content: 'The Member Kesayangan role was not found on this server. Please contact staff.',
+            content: 'The verification role was not found on this server. Please contact staff.',
           });
         }
 
         const member = interaction.member;
-        if (member.roles.cache.has(verifiedRole.id)) {
+        if (
+          (memberKesayanganRole && member.roles.cache.has(memberKesayanganRole.id)) ||
+          (verifiedRole && member.roles.cache.has(verifiedRole.id))
+        ) {
           return interaction.editReply({
             content: 'You are already verified.',
           });
         }
 
+        const rolesToAdd = [];
+        if (memberKesayanganRole) rolesToAdd.push(memberKesayanganRole);
+        if (verifiedRole) rolesToAdd.push(verifiedRole);
+
         try {
-          await member.roles.add(verifiedRole);
+          if (rolesToAdd.length > 0) {
+            await member.roles.add(rolesToAdd);
+          }
           if (unverifiedRole && member.roles.cache.has(unverifiedRole.id)) {
             await member.roles.remove(unverifiedRole);
           }
@@ -39,7 +51,7 @@ module.exports = {
         } catch (err) {
           console.error('Error in verification button:', err);
           return interaction.editReply({
-            content: `Verification failed: ${err.message}. Please ensure the bot role is positioned above the member role.`,
+            content: `Verification failed: ${err.message}. Please ensure the bot role is positioned above the member roles.`,
           });
         }
       }

@@ -19,6 +19,7 @@
     },
     { "name": "Content Creator", "color": "#F1C40F" },
     { "name": "Member Kesayangan", "color": "#3498DB", "hoist": true },
+    { "name": "Verified", "color": "#2ECC71", "hoist": false },
     { "name": "Member Jelata", "color": "#95A5A6" },
     { "name": "Competitive Gamer", "color": "#E74C3C" },
     { "name": "Casual Gamer", "color": "#2ECC71" },
