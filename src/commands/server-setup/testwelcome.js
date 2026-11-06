@@ -9,38 +9,37 @@ module.exports = {
   },
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      await interaction.reply({ content: "❌ You don't have permission to manage server!", ephemeral: true });
+      await interaction.reply({ content: "You do not have permission to manage this server.", ephemeral: true });
       return;
     }
 
     await interaction.deferReply();
 
     try {
-      const settings = await getGuildSettings(interaction.guild.id);
-      console.log('Welcome settings:', settings);
+      const settings = await getGuildSettings(interaction.guild.id).catch(() => ({}));
 
-      if (!settings || !settings.welcome_channel || !settings.welcome_message) {
-        await interaction.editReply({ content: '❌ Welcome system is not configured! Use /setwelcome first.' });
-        return;
+      let welcomeMsg = settings?.welcome_message;
+      if (!welcomeMsg) {
+        welcomeMsg = 'Welcome to **{server}**, {user}! Please check <#rules> and verify in <#verification> to get started.';
       }
 
-      const message = settings.welcome_message
+      const formatted = welcomeMsg
         .replace('{user}', `<@${interaction.user.id}>`)
         .replace('{username}', interaction.user.username)
         .replace('{server}', interaction.guild.name);
 
       const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('👋 Welcome! (Test)')
-        .setDescription(message)
+        .setColor('#3498DB')
+        .setTitle('Welcome (Preview)')
+        .setDescription(formatted)
         .setThumbnail(interaction.user.displayAvatarURL({ size: 256 }))
-        .setFooter({ text: 'This is a test preview of the welcome message' })
+        .setFooter({ text: 'Preview of the welcome message' })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Test welcome error:', error);
-      await interaction.editReply({ content: '❌ An error occurred while testing welcome message!' });
+      await interaction.editReply({ content: 'An error occurred while testing the welcome message.' });
     }
   }
 };
