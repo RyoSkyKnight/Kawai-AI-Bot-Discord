@@ -5,24 +5,37 @@ module.exports = {
   name: 'guildMemberRemove',
   async execute(member) {
     try {
-      const settings = await getGuildSettings(member.guild.id);
+      const settings = await getGuildSettings(member.guild.id).catch(() => ({}));
 
-      if (settings.goodbye_channel && settings.goodbye_message) {
-        const channel = member.guild.channels.cache.get(settings.goodbye_channel);
-        if (channel) {
-          const message = settings.goodbye_message
-            .replace('{username}', member.user.username)
-            .replace('{server}', member.guild.name);
+      // Goodbye Message (with automatic fallback to #welcome channel)
+      let channel = null;
+      if (settings?.goodbye_channel) {
+        channel = member.guild.channels.cache.get(settings.goodbye_channel);
+      }
+      if (!channel) {
+        channel = member.guild.channels.cache.find(
+          c => c.name.toLowerCase() === 'welcome' && c.isTextBased()
+        );
+      }
 
-          const embed = new EmbedBuilder()
-            .setColor('#FF0000')
-            .setTitle('👋 Goodbye!')
-            .setDescription(message)
-            .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
-            .setTimestamp();
-
-          await channel.send({ embeds: [embed] });
+      if (channel) {
+        let goodbyeMsg = settings?.goodbye_message;
+        if (!goodbyeMsg) {
+          goodbyeMsg = 'Goodbye **{username}**, take care!';
         }
+
+        const formatted = goodbyeMsg
+          .replace('{username}', member.user.username)
+          .replace('{server}', member.guild.name);
+
+        const embed = new EmbedBuilder()
+          .setColor('#E74C3C')
+          .setTitle('Goodbye')
+          .setDescription(formatted)
+          .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+          .setTimestamp();
+
+        await channel.send({ embeds: [embed] }).catch(err => console.error('Failed to send goodbye message:', err.message));
       }
     } catch (error) {
       console.error('Error in guildMemberRemove:', error);
