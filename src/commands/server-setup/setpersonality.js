@@ -14,7 +14,7 @@ module.exports = {
         description: 'Choose a personality type',
         required: true,
         choices: Object.entries(PERSONALITIES).map(([key, value]) => ({
-          name: value.name,
+          name: `${value.emoji} ${value.name}`,
           value: key
         }))
       },
@@ -43,7 +43,7 @@ module.exports = {
           await interaction.editReply({ content: "Unable to save personality for the target user." });
           return;
         }
-        await interaction.editReply({ content: `Set ${target.username}'s personality to **${chosenPersonality.name}**.` });
+        await interaction.editReply({ content: `Set ${target.username}'s personality to **${chosenPersonality.emoji} ${chosenPersonality.name}**.` });
       } else {
         const success = await setUserPersonality(interaction.user.id, personalityType);
         if (!success) {
@@ -54,10 +54,14 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setColor('#5865F2')
-          .setTitle('AI Personality Updated')
-          .setDescription(`Your personality has been set to **${chosenPersonality.name}**.`)
-          .addFields({ name: 'System Prompt Preview', value: chosenPersonality.instruction })
+          .setColor(chosenPersonality.color || '#5865F2')
+          .setTitle(`${chosenPersonality.emoji} AI Personality Updated`)
+          .setDescription(`Your Cutie companion personality has been set to **${chosenPersonality.name}**!`)
+          .addFields(
+            { name: 'Panggilan', value: chosenPersonality.calling || 'Master', inline: true },
+            { name: 'Signature Kaomoji', value: chosenPersonality.kaomoji || '*(◕‿◕)♡*', inline: true },
+            { name: 'Deskripsi Karakter', value: chosenPersonality.instruction }
+          )
           .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
