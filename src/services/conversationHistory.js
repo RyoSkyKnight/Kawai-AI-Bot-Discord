@@ -6,74 +6,76 @@ const memoryHistory = new Map(); // userId -> [{ role, content }]
 const activeCompactions = new Map(); // userId -> Promise (in-flight compaction promise)
 
 /**
- * Builds a deterministic, high-quality bulleted digest directly from messages.
- * Used as a 100% reliable fallback when AI summarization is unavailable or returns an error.
+ * Combines all chat messages directly into a single formatted transcript block.
+ * Executed when AI summarization fails 2-3 times ("copas dijadiin 1").
  */
-function buildLocalFallbackRecap(messages) {
-  const userTopics = [];
-  for (const m of messages) {
-    if (m.role === 'user' && m.content) {
-      const clean = m.content.replace(/\n+/g, ' ').trim();
-      if (clean && clean.length > 2 && !clean.toLowerCase().includes("couldn't generate a response") && !userTopics.includes(clean)) {
-        userTopics.push(clean.slice(0, 80));
-      }
-    }
+function combineAllChatsIntoOne(messages) {
+  const formattedLines = messages
+    .filter(m => m.content && !isCorruptedContent(m.content))
+    .map(m => {
+      const sender = m.role === 'user' ? 'Master' : 'Cutie';
+      const text = m.content.replace(/\r?\n+/g, ' ').trim();
+      return `${sender}: "${text.slice(0, 250)}"`;
+    });
+
+  if (formattedLines.length === 0) {
+    return `[Rekap 50 percakapan sebelumnya]:\nPercakapan santai seputar berbagai hal bersama Master.`;
   }
 
-  const bulletPoints = userTopics
-    .slice(-6)
-    .map(t => `• "${t}"`)
-    .join('\n');
-
-  return `[Rekap 50 percakapan sebelumnya]:\nRingkasan topik penting yang dibahas bersama Master:\n${bulletPoints || '• Percakapan hangat dan santai bersama Master seputar berbagai topik.'}`;
+  return `[Rekap/Arsip 50 percakapan sebelumnya]:\n${formattedLines.join('\n')}`;
 }
 
 /**
  * Generates an intelligent recap of 50 conversation messages.
- * Uses chatCompletion with an Indonesian prompt, and strictly falls back to buildLocalFallbackRecap
- * if the AI returns an empty, invalid, or error message.
+ * Tries AI summarization up to 2 times. If it fails or returns invalid text,
+ * immediately combines (copas) all 50 messages into 1 single archive row.
  */
 async function generateConversationRecap(messages) {
   const formatted = messages
-    .filter(m => m.content && !m.content.toLowerCase().includes("couldn't generate a response"))
+    .filter(m => m.content && !isCorruptedContent(m.content))
     .map(m => `${m.role === 'user' ? 'Master/User' : 'Cutie/Assistant'}: ${m.content}`)
     .join('\n');
 
-  try {
-    const response = await chatCompletion({
-      messages: [
-        {
-          role: 'system',
-          content: 'Kamu adalah modul memori AI untuk Cutie. Buatlah ringkasan/rekap percakapan yang padat, jelas, dan terstruktur dari 50 pesan percakapan sebelumnya dalam bahasa Indonesia. Rekap harus mencatat: (1) Informasi pribadi atau preferensi Master yang disebutkan, (2) Topik-topik penting dan diskusi yang telah dibahas, (3) Janji, pengingat, atau tugas yang pernah dibicarakan. Format dalam 3-5 kalimat narasi atau poin penting ringkas.',
-        },
-        {
-          role: 'user',
-          content: `Berikut adalah riwayat percakapan yang harus direkap:\n\n${formatted.slice(0, 10000)}`,
-        },
-      ],
-      maxTokens: 800,
-      temperature: 0.3,
-    });
+  const MAX_AI_ATTEMPTS = 2;
+  for (let attempt = 1; attempt <= MAX_AI_ATTEMPTS; attempt++) {
+    try {
+      const response = await chatCompletion({
+        messages: [
+          {
+            role: 'system',
+            content: 'Kamu adalah modul memori AI untuk Cutie. Buatlah ringkasan/rekap percakapan yang padat, jelas, dan terstruktur dari 50 pesan percakapan sebelumnya dalam bahasa Indonesia. Rekap harus mencatat: (1) Informasi pribadi atau preferensi Master yang disebutkan, (2) Topik-topik penting dan diskusi yang telah dibahas, (3) Janji, pengingat, atau tugas yang pernah dibicarakan. Format dalam 3-5 kalimat narasi atau poin penting ringkas.',
+          },
+          {
+            role: 'user',
+            content: `Berikut adalah riwayat percakapan yang harus direkap:\n\n${formatted.slice(0, 10000)}`,
+          },
+        ],
+        maxTokens: 800,
+        temperature: 0.3,
+      });
 
-    const recapContent = response?.content?.trim();
-    const isInvalid = !recapContent ||
-      recapContent.length < 25 ||
-      recapContent.toLowerCase().includes("couldn't generate a response") ||
-      recapContent.toLowerCase().includes("i'm sorry") ||
-      recapContent.toLowerCase().includes("please try again") ||
-      recapContent.toLowerCase().includes("sepertinya aku sedikit bingung") ||
-      recapContent.toLowerCase().includes("placeholder") ||
-      recapContent.toLowerCase().includes("tidak ada isi");
+      const recapContent = response?.content?.trim();
+      const isInvalid = !recapContent ||
+        recapContent.length < 25 ||
+        recapContent.toLowerCase().includes("couldn't generate a response") ||
+        recapContent.toLowerCase().includes("i'm sorry") ||
+        recapContent.toLowerCase().includes("please try again") ||
+        recapContent.toLowerCase().includes("sepertinya aku sedikit bingung") ||
+        recapContent.toLowerCase().includes("placeholder") ||
+        recapContent.toLowerCase().includes("tidak ada isi");
 
-    if (!isInvalid) {
-      return `[Rekap 50 percakapan sebelumnya]:\n${recapContent}`;
+      if (!isInvalid) {
+        return `[Rekap 50 percakapan sebelumnya]:\n${recapContent}`;
+      }
+      console.warn(`[ChatHistory] AI recap attempt ${attempt} returned invalid content, retrying...`);
+    } catch (err) {
+      console.warn(`[ChatHistory] AI recap attempt ${attempt} failed (${err.message}), retrying...`);
     }
-  } catch (err) {
-    console.error('[ChatHistory] Failed to generate AI recap, falling back to local digest:', err.message || err);
   }
 
-  // Fallback to deterministic local summary
-  return buildLocalFallbackRecap(messages);
+  // Jika gagal 2-3x, langsung copas semua 50 chat dijadiin 1 baris
+  console.log('[ChatHistory] AI recap failed after retries. Combining all 50 chats into 1 archive row.');
+  return combineAllChatsIntoOne(messages);
 }
 
 /**
@@ -286,7 +288,7 @@ module.exports = {
   clearHistory,
   compactHistoryIfNeeded,
   generateConversationRecap,
-  buildLocalFallbackRecap,
+  combineAllChatsIntoOne,
   isCorruptedContent,
   MAX_HISTORY_MESSAGES,
 };
