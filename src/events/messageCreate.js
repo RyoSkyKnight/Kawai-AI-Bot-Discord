@@ -83,10 +83,8 @@ module.exports = {
           return;
         }
 
-        replyMsg = await message.reply({ embeds: [createThinkingEmbed()] }).catch(() => null);
-        if (!replyMsg) {
-          await message.channel.sendTyping().catch(() => {});
-        }
+        await message.channel.sendTyping().catch(() => {});
+        replyMsg = await message.reply({ content: '*Cutie sedang berpikir...* 💕' }).catch(() => null);
 
         const executeAi = async () => {
           return await processAiChat({

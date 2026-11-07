@@ -798,7 +798,7 @@ const tools = {
       const timeStr = formatDuration(ms, 'id');
 
       setTimeout(async () => {
-        const alertContent = `<@${user.id}> **Reminder / Timer (${timeStr}):**\n${reminderMsg}`;
+        const alertContent = `⏰ <@${user.id}> **Ting-ting! Pengingat dari Cutie untuk Master (${timeStr})** 💕\n> "${reminderMsg}"\n*(◕‿◕)♡ Jangan lupa ya, Master!*`;
         let sent = false;
         if (channel && channel.send) {
           try {
@@ -815,7 +815,9 @@ const tools = {
 
       return {
         ok: true,
-        message: `Reminder / timer set for ${timeStr}. Note: "${reminderMsg}".`,
+        duration: timeStr,
+        note: reminderMsg,
+        message: `Reminder for "${reminderMsg}" in ${timeStr} successfully scheduled!`,
       };
     },
   },

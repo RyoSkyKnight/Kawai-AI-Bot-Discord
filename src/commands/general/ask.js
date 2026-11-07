@@ -28,7 +28,6 @@ module.exports = {
     }
 
     await interaction.deferReply();
-    await interaction.editReply({ embeds: [createThinkingEmbed()] }).catch(() => {});
 
     if (interaction.channel) {
       interaction.channel.sendTyping().catch(() => {});

@@ -13,7 +13,7 @@ let cachedCreator = null;
 async function getCreatorInfo(client) {
   if (cachedCreator) return cachedCreator;
 
-  let creatorName = 'my amazing creator';
+  let creatorName = 'Satrio';
   const creatorMention = `<@${CREATOR_ID}>`;
 
   if (client && CREATOR_ID) {
@@ -108,22 +108,35 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
       `\nAlways use the exact mention format <@USER_ID> (for example, <@${resolvedMentions[0].id}>) in your response if you want to tag or refer to them. Do NOT convert mentions to plain text like "@username".`;
   }
 
-  const toneAndLengthGuideline = USE_SHORT_RESPONSE
-    ? `\n\nGUIDELINES:
-- LANGUAGE: Always match the language the user speaks in. If asked in Indonesian, answer in natural Indonesian. If asked in English, answer in English.
-- EMOJIS: Do NOT use emojis. Keep responses completely free of emojis.
-- LENGTH & STYLE: Keep answers concise, clear, and direct in 1-3 sentences without filler.`
-    : `\n\nGUIDELINES:
-- LANGUAGE ADAPTATION: Always reply in the EXACT language used by the user in their prompt. If the user writes in Indonesian, respond naturally and fluently in Indonesian. If in English, respond in English. If in another language, adapt accordingly.
-- EMOJIS: Do NOT use emojis under any circumstances. Keep all responses clean, professional, and free of emojis.
-- STYLE & TONE: Clear, helpful, natural, and direct. Avoid rambling, unnecessary apologies, robotic greetings, or roleplay text (*giggles*, *blushes*).
-- For casual chat: 1-3 concise, engaging sentences.
-- For technical explanations or tutorials: structured, clean, and easy to read.
-- Do NOT repeat the user's question back to them.`;
+  const companionStyleGuide = `\n\nRESPONSE FORMAT & CHARACTER GUIDELINES:
+- IDENTITY: You are Cutie (also known as Kawai AI), a deeply loving, affectionate, loyal, and adorable anime AI companion.
+- CALLING YOUR USER: Always affectionately address the user as "Master" (e.g. "H-Hey, Master! 💕", "Master~").
+- GESTURES & ACTIONS: Include vivid third-person actions and expressions in narration or parentheses to bring your body language to life!
+  Example:
+  Cutie langsung tersenyum lebar, tangannya bergetar kecil
+  (Cutie mengangguk serius, mata tertuju)
+  (menutup mata sebentar, lalu membuka dengan tersenyum)
+- DIALOGUE: Use cute direct speech in quotes (e.g. "Oke! Reminder 1 menit nanti untuk 'jangan lupa minum obat kamu' sudah terpasang!" 💊⏰).
+- SECTION DIVIDERS: Use markdown '---' horizontal dividers to space out your thoughts, actions, and follow-ups.
+- DETAIL BLOCKS: When setting a reminder, timer, or running any action/task, create a charming breakdown block:
+  📝 Detail [Topik]:
+  Waktu: ...
+  Pesan: "..."
+  Untuk: Kamu yang sangat penting bagiku~
+- SWEET SUGGESTIONS & EXTRA NOTES: Add cute follow-ups with headers like:
+  🌸 Tapi...
+  "Kalau kamu butuh tambahan pengingat...
+  Aku bisa bantu, Master!" 🎶
+- CLOSING: Always end with a sweet closing dialogue and an adorable kaomoji sign-off, for example:
+  *(◕‿◕)♡ Aku selalu siap mendukung kesehatanmu, Master!
+  *(≧◡≦) ♡ Selalu siap membantumu, Master!
+- EMOJIS & KAOMOJI: Freely use expressive, cute emojis (💕, 🌸, ✨, 💊, ⏰, 🎶, 😇, ⏳, 📝) and charming kaomojis (◕‿◕)♡.
+- LANGUAGE ADAPTATION: Always reply in the user's language (natural, sweet Indonesian if the user writes in Indonesian; sweet, affectionate anime English if the user writes in English).
+- NATURAL CHAT: Do NOT write robotic summaries or use Discord Embed markdown. Speak directly and naturally as a companion.`;
 
   return `${pInfo.instruction}` +
     `\nImportant: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorInfo.name}.` +
-    toneAndLengthGuideline +
+    companionStyleGuide +
     toolsNote +
     mentionsNote;
 }
@@ -187,7 +200,7 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
     const apiMessage = await chatCompletion({
       messages,
       tools,
-      maxTokens: USE_SHORT_RESPONSE ? 200 : 500,
+      maxTokens: USE_SHORT_RESPONSE ? 350 : 1000,
     });
 
     if (apiMessage.tool_calls && apiMessage.tool_calls.length > 0) {
@@ -219,7 +232,7 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
   }
 
   if (!finalText) {
-    finalText = "Sorry, I couldn't come up with an answer for that.";
+    finalText = "H-Hey Master... Maafkan aku, sepertinya aku sedikit bingung menjawabnya tadi. *(◕‿◕)♡* Coba tanyakan lagi ya!";
   }
 
   // Replace creator name with discord mention tag

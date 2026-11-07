@@ -8,15 +8,15 @@ const {
 } = require('discord.js');
 
 /**
- * Splits a long text into multiple chunks suitable for Discord Embed descriptions (max 4096 chars).
- * We use 3500 chars as a safe threshold and split along paragraph/line boundaries.
+ * Splits text into chunks suitable for Discord message content (max 2000 chars).
+ * Splits along paragraph or line boundaries and safely preserves markdown codeblocks.
  */
-function splitResponseIntoPages(text, maxPageLength = 3500) {
-  if (!text || text.length <= maxPageLength) {
+function splitResponseIntoChunks(text, maxChunkLength = 1950) {
+  if (!text || text.length <= maxChunkLength) {
     return [text || ''];
   }
 
-  const pages = [];
+  const chunks = [];
   const lines = text.split('\n');
   let currentChunk = '';
   let inCodeBlock = false;
@@ -26,11 +26,11 @@ function splitResponseIntoPages(text, maxPageLength = 3500) {
     const codeBlockMatch = line.match(/^```(\w+)?/);
     const togglesCodeBlock = line.startsWith('```');
 
-    if (currentChunk.length + line.length + 1 > maxPageLength && currentChunk.length > 0) {
+    if (currentChunk.length + line.length + 1 > maxChunkLength && currentChunk.length > 0) {
       if (inCodeBlock) {
         currentChunk += '\n```';
       }
-      pages.push(currentChunk.trim());
+      chunks.push(currentChunk.trim());
 
       if (inCodeBlock) {
         currentChunk = '```' + codeBlockLanguage + '\n' + line + '\n';
@@ -53,26 +53,21 @@ function splitResponseIntoPages(text, maxPageLength = 3500) {
   }
 
   if (currentChunk.trim().length > 0) {
-    pages.push(currentChunk.trim());
+    chunks.push(currentChunk.trim());
   }
 
-  return pages.length > 0 ? pages : [''];
+  return chunks.length > 0 ? chunks : [''];
 }
 
 /**
- * Builds an aesthetic "Thinking" loading embed.
+ * Legacy thinking embed helper for backward compatibility.
  */
 function createThinkingEmbed(personality) {
-  const p = personality || { name: 'Cutie', color: '#3498DB' };
-  return new EmbedBuilder()
-    .setColor(p.color || '#3498DB')
-    .setTitle('Thinking...')
-    .setDescription('Processing your request...')
-    .setFooter({ text: 'Cutie AI' });
+  return null;
 }
 
 /**
- * Builds the modern response embed.
+ * Legacy embed builder for backward compatibility.
  */
 function buildModernAiEmbed({
   pageText,
@@ -82,34 +77,25 @@ function buildModernAiEmbed({
   pageIndex,
   totalPages,
 }) {
-  const p = personality || { name: 'Cutie', color: '#3498DB' };
-
+  const p = personality || { name: 'Cutie', color: '#FF69B4' };
   const embed = new EmbedBuilder()
-    .setColor(p.color || '#3498DB')
-    .setTitle(`Cutie AI • ${p.name || 'Assistant'}`)
+    .setColor(p.color || '#FF69B4')
+    .setTitle(`Cutie • ${p.name || 'Companion'}`)
     .setDescription(pageText)
     .setTimestamp();
 
   if (user) {
     embed.setAuthor({
-      name: `Asked by ${user.displayName || user.username}`,
+      name: user.displayName || user.username,
       iconURL: user.displayAvatarURL({ dynamic: true }),
     });
   }
-
-  const footerParts = [];
-  if (latency != null) footerParts.push(`${latency}ms`);
-  footerParts.push('OpenRouter AI');
-  if (totalPages > 1) {
-    footerParts.push(`Page ${pageIndex + 1}/${totalPages}`);
-  }
-  embed.setFooter({ text: footerParts.join(' • ') });
 
   return embed;
 }
 
 /**
- * Builds the interactive Action Rows (Paginator + Delete button).
+ * Legacy button builder for backward compatibility.
  */
 function buildModernActionRows({
   pageIndex,
@@ -117,43 +103,12 @@ function buildModernActionRows({
   isProcessing = false,
   uniqueId = '',
 }) {
-  const rows = [];
-  const controlButtons = [];
-
-  // Paginator buttons ONLY if more than 1 page
-  if (totalPages > 1) {
-    controlButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`ai_prev_${uniqueId}`)
-        .setLabel('Prev')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(pageIndex === 0 || isProcessing)
-    );
-
-    controlButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`ai_page_${uniqueId}`)
-        .setLabel(`${pageIndex + 1}/${totalPages}`)
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true)
-    );
-
-    controlButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`ai_next_${uniqueId}`)
-        .setLabel('Next')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(pageIndex === totalPages - 1 || isProcessing)
-    );
-
-    rows.push(new ActionRowBuilder().addComponents(controlButtons));
-  }
-
-  return rows;
+  return [];
 }
 
 /**
- * Sends or edits a message to display the modern AI response, and attaches the interactive collector.
+ * Sends or edits the AI chat response as natural plain text without embeds.
+ * Preserves freshness, intimacy, and full conversational naturalness.
  */
 async function sendModernAiResponse({
   target,
@@ -162,104 +117,56 @@ async function sendModernAiResponse({
   aiResult,
 }) {
   let text = typeof aiResult === 'object' && aiResult.text ? aiResult.text : String(aiResult || '');
-  let personality = aiResult?.personality;
-  let latency = aiResult?.latency;
+  const chunks = splitResponseIntoChunks(text, 1950);
 
-  const pages = splitResponseIntoPages(text);
-  let currentPage = 0;
-  const uniqueId = `${user.id}_${Date.now()}`;
-
-  const renderPayload = (isProcessing = false) => {
-    const embed = buildModernAiEmbed({
-      pageText: pages[currentPage],
-      personality,
-      latency,
-      user,
-      pageIndex: currentPage,
-      totalPages: pages.length,
-      prompt,
-    });
-
-    const components = buildModernActionRows({
-      pageIndex: currentPage,
-      totalPages: pages.length,
-      isProcessing,
-      uniqueId,
-    });
-
-    return {
-      content: null,
-      embeds: [embed],
-      components,
-    };
+  const firstPayload = {
+    content: chunks[0] || '*(Cutie tersenyum manis...)*',
+    embeds: [],
+    components: [],
   };
 
-  let responseMessage;
-  if (typeof target.editReply === 'function') {
-    responseMessage = await target.editReply(renderPayload(false));
-  } else if (typeof target.edit === 'function') {
-    responseMessage = await target.edit(renderPayload(false));
+  let responseMessage = null;
+
+  try {
+    if (typeof target.editReply === 'function') {
+      // Interaction (slash command /ask)
+      responseMessage = await target.editReply(firstPayload);
+    } else if (typeof target.edit === 'function') {
+      // Message edit (placeholder response)
+      responseMessage = await target.edit(firstPayload);
+    } else if (typeof target.reply === 'function') {
+      // Message direct reply
+      responseMessage = await target.reply(firstPayload);
+    }
+  } catch (err) {
+    console.error('Error sending AI response:', err);
+    if (target.channel && typeof target.channel.send === 'function') {
+      responseMessage = await target.channel.send(firstPayload).catch(() => null);
+    }
   }
 
-  if (!responseMessage) return;
-
-  // Setup component collector for 5 minutes
-  const collector = responseMessage.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    time: 5 * 60 * 1000,
-  });
-
-  collector.on('collect', async (interaction) => {
-    const isAuthor = interaction.user.id === user.id;
-    const isMod = interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers);
-
-    if (!isAuthor && !isMod) {
-      await interaction.reply({
-        content: `Only <@${user.id}> or a moderator can use these controls.`,
-        ephemeral: true,
-      });
-      return;
+  // If response exceeds 2000 characters, send additional chunks as sequential messages
+  if (chunks.length > 1) {
+    const channel = target.channel;
+    for (let i = 1; i < chunks.length; i++) {
+      try {
+        if (typeof target.followUp === 'function') {
+          await target.followUp({ content: chunks[i] });
+        } else if (channel && typeof channel.send === 'function') {
+          await channel.send({ content: chunks[i] });
+        }
+      } catch (chunkErr) {
+        console.error('Error sending response chunk:', chunkErr);
+      }
     }
+  }
 
-    const customId = interaction.customId;
-
-    if (customId === `ai_delete_${uniqueId}`) {
-      collector.stop('deleted');
-      await responseMessage.delete().catch(() => {});
-      return;
-    }
-
-    if (customId === `ai_prev_${uniqueId}`) {
-      if (currentPage > 0) currentPage--;
-      await interaction.update(renderPayload(false)).catch(() => {});
-      return;
-    }
-
-    if (customId === `ai_next_${uniqueId}`) {
-      if (currentPage < pages.length - 1) currentPage++;
-      await interaction.update(renderPayload(false)).catch(() => {});
-      return;
-    }
-  });
-
-  collector.on('end', async (_, reason) => {
-    if (reason === 'deleted') return;
-    try {
-      const disabledRows = buildModernActionRows({
-        pageIndex: currentPage,
-        totalPages: pages.length,
-        isProcessing: true,
-        uniqueId,
-      });
-      await responseMessage.edit({ components: disabledRows }).catch(() => {});
-    } catch {
-      // Message may already be deleted, ignore
-    }
-  });
+  return responseMessage;
 }
 
 module.exports = {
-  splitResponseIntoPages,
+  splitResponseIntoPages: splitResponseIntoChunks,
+  splitResponseIntoChunks,
   createThinkingEmbed,
   buildModernAiEmbed,
   buildModernActionRows,
