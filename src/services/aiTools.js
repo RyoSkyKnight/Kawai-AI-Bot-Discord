@@ -771,45 +771,80 @@ const tools = {
       type: 'function',
       function: {
         name: 'set_reminder',
-        description: "Set a countdown timer or reminder for the user. Call this tool whenever the user asks to be reminded of something, set a timer, or count down time (e.g. 'tolong ingatkan aku dalam 1 menit ya', 'set timer 5 menit', 'ingetin 10 menit lagi', 'remind me in 1 hour').",
+        description: "Set a countdown timer or reminder for the user. Call this tool whenever the user asks to be reminded of something, set a timer, or count down time (e.g. 'tolong ingatkan aku dalam 1 menit ya', 'set timer 15 detik', 'ingetin 10 menit lagi', 'remind me in 1 hour').",
         parameters: {
           type: 'object',
           properties: {
-            duration: { type: 'string', description: 'Duration or time, e.g. "1m", "1 menit", "10s", "30 detik", "1h", "2 jam"' },
+            duration: { type: 'string', description: 'Duration or time, e.g. "15s", "15 detik", "1m", "5 menit", "1h", "2 jam"' },
+            seconds: { type: 'integer', description: 'Number of seconds directly (e.g. 15)' },
+            minutes: { type: 'number', description: 'Number of minutes directly (e.g. 1)' },
             time: { type: 'string', description: 'Alias for duration' },
-            message: { type: 'string', description: 'What to remind the user about (e.g. "minum obat", "cek oven"). Defaults to "Waktunya selesai!" if not provided.' },
+            message: { type: 'string', description: 'What to remind the user about (e.g. "minum coklat", "minum obat"). Defaults to "Waktunya selesai!" if not provided.' },
           },
         },
       },
     },
     async handler(interaction, args) {
-      const rawTime = args.duration || args.time;
-      const ms = parseDuration(rawTime);
+      let ms = null;
+      if (args.seconds !== undefined && args.seconds !== null && !isNaN(Number(args.seconds)) && Number(args.seconds) > 0) {
+        ms = Math.round(Number(args.seconds) * 1000);
+      } else if (args.minutes !== undefined && args.minutes !== null && !isNaN(Number(args.minutes)) && Number(args.minutes) > 0) {
+        ms = Math.round(Number(args.minutes) * 60000);
+      } else {
+        const rawTime = args.duration || args.time || args.seconds || args.minutes;
+        ms = parseDuration(rawTime);
+      }
+
       if (!ms || ms <= 0) {
-        return { ok: false, message: 'Format waktu tidak valid. Gunakan format seperti 10s, 1m, 5 menit, 1 jam.' };
+        return { ok: false, message: 'Format waktu tidak valid. Gunakan format seperti 15 detik, 10s, 1m, 5 menit, 1 jam.' };
       }
       if (ms > 24 * 60 * 60 * 1000 * 30) {
         return { ok: false, message: 'Durasi maksimal pengingat adalah 30 hari.' };
       }
 
       const user = interaction.user;
-      const channel = interaction.channel;
+      const client = interaction.client;
+      const channelId = interaction.channelId || interaction.channel?.id;
+      let initialChannel = interaction.channel;
       const reminderMsg = args.message && args.message.trim() ? args.message.trim() : 'Waktunya selesai!';
       const timeStr = formatDuration(ms, 'id');
 
+      console.log(`[Timer] Scheduling reminder for user ${user?.id} in ${ms}ms (${timeStr}): "${reminderMsg}" in channel ${channelId}`);
+
       setTimeout(async () => {
+        console.log(`[Timer] Firing reminder for user ${user?.id}: "${reminderMsg}"`);
         const alertContent = `⏰ <@${user.id}> **Ting-ting! Pengingat dari Cutie untuk Master (${timeStr})** 💕\n> "${reminderMsg}"\n*(◕‿◕)♡ Jangan lupa ya, Master!*`;
         let sent = false;
-        if (channel && channel.send) {
-          try {
-            await channel.send({ content: alertContent });
-            sent = true;
-          } catch (_) {}
+
+        // 1. Try sending to the channel where it was requested
+        let targetChannel = initialChannel;
+        if ((!targetChannel || typeof targetChannel.send !== 'function') && client && channelId) {
+          targetChannel = await client.channels.fetch(channelId).catch(() => null);
         }
-        if (!sent) {
+
+        if (targetChannel && typeof targetChannel.send === 'function') {
           try {
-            await user.send(alertContent);
-          } catch (_) {}
+            await targetChannel.send({ content: alertContent });
+            sent = true;
+            console.log(`[Timer] Successfully sent reminder to channel ${channelId}`);
+          } catch (err) {
+            console.error('[Timer] Failed to send to channel:', err.message || err);
+          }
+        }
+
+        // 2. Fallback to DM if channel failed
+        if (!sent && user && typeof user.send === 'function') {
+          try {
+            await user.send({ content: alertContent });
+            sent = true;
+            console.log(`[Timer] Successfully sent reminder to user DM`);
+          } catch (err) {
+            console.error('[Timer] Failed to send to DM:', err.message || err);
+          }
+        }
+
+        if (!sent) {
+          console.error(`[Timer] CRITICAL: Could not deliver reminder to channel ${channelId} or user DM!`);
         }
       }, ms);
 
@@ -817,7 +852,7 @@ const tools = {
         ok: true,
         duration: timeStr,
         note: reminderMsg,
-        message: `Reminder for "${reminderMsg}" in ${timeStr} successfully scheduled!`,
+        message: `Reminder for "${reminderMsg}" in ${timeStr} successfully scheduled! Timer is actively counting down.`,
       };
     },
   },
@@ -828,11 +863,13 @@ const tools = {
       type: 'function',
       function: {
         name: 'set_timer',
-        description: "Set a countdown timer or reminder. Call this tool whenever the user asks to set a timer, countdown, or be reminded (e.g. 'set timer 1 menit', 'tolong pasang timer 5 menit', 'set timer 10s').",
+        description: "Set a countdown timer or reminder. Call this tool whenever the user asks to set a timer, countdown, or be reminded (e.g. 'set timer 1 menit', 'tolong pasang timer 15 detik', 'set timer 10s').",
         parameters: {
           type: 'object',
           properties: {
-            duration: { type: 'string', description: 'Duration or time, e.g. "1m", "1 menit", "10s", "30 detik", "1h", "2 jam"' },
+            duration: { type: 'string', description: 'Duration or time, e.g. "15s", "15 detik", "1m", "5 menit", "1h", "2 jam"' },
+            seconds: { type: 'integer', description: 'Number of seconds directly (e.g. 15)' },
+            minutes: { type: 'number', description: 'Number of minutes directly (e.g. 1)' },
             time: { type: 'string', description: 'Alias for duration' },
             message: { type: 'string', description: 'Note for the timer. Defaults to "Waktunya selesai!" if not provided.' },
           },

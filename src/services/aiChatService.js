@@ -88,7 +88,7 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
   const toolsListStr = tools.map((t) => t.function.name).join(', ');
   const toolsNote = tools.length > 0
     ? `\n\nAVAILABLE TOOLS & ACTIONS (${toolsListStr}):
-- When the user asks to be reminded, set a timer, or count down time (e.g. "tolong ingatkan aku dalam 1 menit ya", "set timer 5 menit", "ingetin 10 menit lagi", "remind me in 1 hour"), you MUST call the "set_timer" or "set_reminder" tool. Never just say you will remind them without calling the tool!
+- When the user asks to be reminded, set a timer, or count down time (e.g. "tolong ingatkan aku dalam 1 menit ya", "set timer 15 detik", "set timer 5 menit", "ingetin 10 menit lagi", "remind me in 1 hour"), you MUST call the "set_timer" or "set_reminder" tool. Never just say you will remind them without calling the tool!
 - When the user asks for exact math calculation (e.g. "hitung 25 * 40"), call the "calculate" tool.
 - When the user asks to choose between options (e.g. "pilihin antara bakso atau sate", "choose between movie or gaming"), call "choose_option".
 - When asked to flip a coin ("lempar koin") or roll a dice ("roll dadu 1-20"), call "flip_coin" or "roll_dice".
@@ -137,7 +137,7 @@ ${gesturesSample}
   * Conclude each response with an in-character remark and your signature kaomoji: ${pInfo.kaomoji || '*(◕‿◕)♡*'}.
 - EMOJIS: Use emojis matching your personality naturally.
 - LANGUAGE ADAPTATION: Always reply in the language the user speaks (natural Indonesian if user writes in Indonesian; fluent English if user writes in English).
-- PLAIN TEXT ONLY: No Discord Embed blocks. Speak directly as a fresh and natural Discord chat companion.`;
+- EMBED WRAPPER: Your entire response will be presented inside an aesthetic Discord Embed card. Write clean Markdown (bold, lists, quotes, dialogue) without raw HTML, without manual ASCII tables, and minimize horizontal dividers ('---').`;
 
   return `Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorInfo.name}.` +
     companionStyleGuide +
@@ -265,4 +265,5 @@ module.exports = {
   getCreatorInfo,
   resolveMentions,
   buildSystemInstruction,
+  getEffectivePersonality,
 };

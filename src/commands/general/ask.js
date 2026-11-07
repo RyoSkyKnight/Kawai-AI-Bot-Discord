@@ -1,5 +1,5 @@
 const state = require('../../state');
-const { processAiChat } = require('../../services/aiChatService');
+const { processAiChat, getEffectivePersonality } = require('../../services/aiChatService');
 const { sendModernAiResponse, createThinkingEmbed } = require('../../utils/aiResponseHelper');
 
 module.exports = {
@@ -36,6 +36,9 @@ module.exports = {
     state.activeAskUsers.add(userId);
 
     try {
+      const pInfo = await getEffectivePersonality(userId, interaction.guild?.id);
+      await interaction.editReply({ embeds: [createThinkingEmbed(pInfo)] }).catch(() => {});
+
       const executeAi = async () => {
         return await processAiChat({
           prompt,
@@ -68,4 +71,3 @@ module.exports = {
     }
   }
 };
-

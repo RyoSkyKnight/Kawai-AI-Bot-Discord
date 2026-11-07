@@ -6,7 +6,7 @@ const { getBadWords, containsBadWords } = require('../services/badWords');
 const { logModAction } = require('../services/moderation');
 const { sendLog } = require('../services/logChannel');
 const { parseDuration, formatDuration } = require('../utils/duration');
-const { processAiChat } = require('../services/aiChatService');
+const { processAiChat, getEffectivePersonality } = require('../services/aiChatService');
 const { sendModernAiResponse, createThinkingEmbed } = require('../utils/aiResponseHelper');
 
 // Periodic cleanup of stale spam tracking records (every 2 minutes)
@@ -84,7 +84,8 @@ module.exports = {
         }
 
         await message.channel.sendTyping().catch(() => {});
-        replyMsg = await message.reply({ content: '*Cutie sedang berpikir...* 💕' }).catch(() => null);
+        const pInfo = await getEffectivePersonality(message.author.id, message.guild?.id);
+        replyMsg = await message.reply({ embeds: [createThinkingEmbed(pInfo)] }).catch(() => null);
 
         const executeAi = async () => {
           return await processAiChat({

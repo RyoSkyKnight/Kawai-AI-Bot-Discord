@@ -5,12 +5,15 @@ const unitMultipliers = {
   second: 1000,
   seconds: 1000,
   detik: 1000,
+  dtk: 1000,
+  det: 1000,
   m: 60000,
   min: 60000,
   mins: 60000,
   minute: 60000,
   minutes: 60000,
   menit: 60000,
+  mnt: 60000,
   h: 3600000,
   hr: 3600000,
   hrs: 3600000,
@@ -24,13 +27,13 @@ const unitMultipliers = {
 };
 
 function parseDuration(duration) {
-  if (!duration) return null;
+  if (!duration && duration !== 0) return null;
   const raw = String(duration).trim().toLowerCase();
 
-  // If pure digits, treat as seconds if >= 60, otherwise minutes
+  // If pure digits, treat as seconds
   if (/^\d+$/.test(raw)) {
     const val = parseInt(raw, 10);
-    return val >= 60 ? val * 1000 : val * 60000;
+    return val > 0 ? val * 1000 : null;
   }
 
   const regex = /(\d+)\s*([a-zA-Z]+)/g;
