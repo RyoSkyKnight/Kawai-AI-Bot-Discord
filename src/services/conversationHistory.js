@@ -6,11 +6,36 @@ const memoryHistory = new Map(); // userId -> [{ role, content }]
 const activeCompactions = new Map(); // userId -> Promise (in-flight compaction promise)
 
 /**
- * Generates an intelligent, high-density recap of 50 conversation messages.
- * Uses chatCompletion with an Indonesian system prompt, and provides a safe fallback if the API fails.
+ * Builds a deterministic, high-quality bulleted digest directly from messages.
+ * Used as a 100% reliable fallback when AI summarization is unavailable or returns an error.
+ */
+function buildLocalFallbackRecap(messages) {
+  const userTopics = [];
+  for (const m of messages) {
+    if (m.role === 'user' && m.content) {
+      const clean = m.content.replace(/\n+/g, ' ').trim();
+      if (clean && clean.length > 2 && !clean.toLowerCase().includes("couldn't generate a response") && !userTopics.includes(clean)) {
+        userTopics.push(clean.slice(0, 80));
+      }
+    }
+  }
+
+  const bulletPoints = userTopics
+    .slice(-6)
+    .map(t => `• "${t}"`)
+    .join('\n');
+
+  return `[Rekap 50 percakapan sebelumnya]:\nRingkasan topik penting yang dibahas bersama Master:\n${bulletPoints || '• Percakapan hangat dan santai bersama Master seputar berbagai topik.'}`;
+}
+
+/**
+ * Generates an intelligent recap of 50 conversation messages.
+ * Uses chatCompletion with an Indonesian prompt, and strictly falls back to buildLocalFallbackRecap
+ * if the AI returns an empty, invalid, or error message.
  */
 async function generateConversationRecap(messages) {
   const formatted = messages
+    .filter(m => m.content && !m.content.toLowerCase().includes("couldn't generate a response"))
     .map(m => `${m.role === 'user' ? 'Master/User' : 'Cutie/Assistant'}: ${m.content}`)
     .join('\n');
 
@@ -26,28 +51,29 @@ async function generateConversationRecap(messages) {
           content: `Berikut adalah riwayat percakapan yang harus direkap:\n\n${formatted.slice(0, 10000)}`,
         },
       ],
-      maxTokens: 400,
+      maxTokens: 800,
       temperature: 0.3,
     });
 
     const recapContent = response?.content?.trim();
-    if (recapContent) {
+    const isInvalid = !recapContent ||
+      recapContent.length < 25 ||
+      recapContent.toLowerCase().includes("couldn't generate a response") ||
+      recapContent.toLowerCase().includes("i'm sorry") ||
+      recapContent.toLowerCase().includes("please try again") ||
+      recapContent.toLowerCase().includes("sepertinya aku sedikit bingung") ||
+      recapContent.toLowerCase().includes("placeholder") ||
+      recapContent.toLowerCase().includes("tidak ada isi");
+
+    if (!isInvalid) {
       return `[Rekap 50 percakapan sebelumnya]:\n${recapContent}`;
     }
   } catch (err) {
-    console.error('[ChatHistory] Failed to generate AI recap, falling back:', err.message || err);
+    console.error('[ChatHistory] Failed to generate AI recap, falling back to local digest:', err.message || err);
   }
 
-  // Fallback summary if AI call fails
-  const userSnippets = messages
-    .filter(m => m.role === 'user')
-    .map(m => m.content.replace(/\n+/g, ' ').trim().slice(0, 70))
-    .filter(Boolean)
-    .slice(-6)
-    .map(s => `• ${s}`)
-    .join('\n');
-
-  return `[Rekap 50 percakapan sebelumnya]:\nRingkasan topik penting yang dibahas bersama Master:\n${userSnippets || '• Percakapan santai seputar berbagai topik.'}`;
+  // Fallback to deterministic local summary
+  return buildLocalFallbackRecap(messages);
 }
 
 /**
@@ -142,42 +168,81 @@ async function compactHistoryIfNeeded(userId) {
   return await compactionPromise;
 }
 
-// Returns the last N messages for a user, oldest first, in
-// { role, content } shape ready to spread into an OpenRouter messages array.
+/**
+ * Returns the last N messages for a user, oldest first, in
+ * { role, content } shape ready to spread into an OpenRouter messages array.
+ * Automatically cleanses any corrupted error messages from history.
+ */
 async function getHistory(userId) {
   try {
     const { data, error } = await supabase
       .from('ai_conversations')
-      .select('role, content, created_at')
+      .select('id, role, content, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(MAX_HISTORY_MESSAGES);
 
     if (error) {
       console.error('Error fetching AI conversation history:', error);
-      return memoryHistory.get(userId) || [];
+      const mem = memoryHistory.get(userId) || [];
+      return mem.filter(m => !isCorruptedContent(m.content));
     }
 
-    const rows = (data || [])
-      .slice()
-      .reverse() // fetched newest-first, put back in chronological order
-      .map((row) => ({ role: row.role, content: row.content }));
+    const corruptedIds = [];
+    const validRows = [];
+
+    for (const row of (data || [])) {
+      if (isCorruptedContent(row.content)) {
+        if (row.id) corruptedIds.push(row.id);
+      } else {
+        validRows.push({ role: row.role, content: row.content });
+      }
+    }
+
+    // Asynchronously delete corrupted rows from Supabase
+    if (corruptedIds.length > 0) {
+      supabase
+        .from('ai_conversations')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', corruptedIds)
+        .then(() => {
+          console.log(`[ChatHistory] Sanitized ${corruptedIds.length} corrupted rows from Supabase for user ${userId}`);
+        })
+        .catch(() => {});
+    }
+
+    const rows = validRows.reverse(); // put back in chronological order
 
     if (rows.length > 0) {
       memoryHistory.set(userId, rows);
       return rows;
     }
 
-    return memoryHistory.get(userId) || [];
+    const mem = memoryHistory.get(userId) || [];
+    return mem.filter(m => !isCorruptedContent(m.content));
   } catch (err) {
-    return memoryHistory.get(userId) || [];
+    const mem = memoryHistory.get(userId) || [];
+    return mem.filter(m => !isCorruptedContent(m.content));
   }
+}
+
+function isCorruptedContent(content) {
+  if (typeof content !== 'string') return false;
+  const lower = content.toLowerCase();
+  return lower.includes("couldn't generate a response") ||
+    lower.includes("please try again later") ||
+    (lower.startsWith("[rekap") && lower.includes("i'm sorry"));
 }
 
 // Stores one turn (role: 'user' | 'assistant') and triggers compaction when 50 messages is reached.
 async function pushHistory(userId, role, content) {
+  if (isCorruptedContent(content)) {
+    return; // Never save corrupted error strings into history
+  }
+
   // Update in-memory history
-  const current = memoryHistory.get(userId) || [];
+  const current = (memoryHistory.get(userId) || []).filter(m => !isCorruptedContent(m.content));
   current.push({ role, content });
   memoryHistory.set(userId, current);
 
@@ -221,5 +286,7 @@ module.exports = {
   clearHistory,
   compactHistoryIfNeeded,
   generateConversationRecap,
+  buildLocalFallbackRecap,
+  isCorruptedContent,
   MAX_HISTORY_MESSAGES,
 };

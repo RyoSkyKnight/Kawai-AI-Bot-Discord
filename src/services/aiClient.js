@@ -1,5 +1,5 @@
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.API_KEY;
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
+require('dotenv').config();
+
 const BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /**
@@ -8,12 +8,14 @@ const BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
  * so the caller can handle multi-turn tool-calling loops.
  */
 async function chatCompletion({ messages, tools, maxTokens = 1000, temperature = 0.7 }) {
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.API_KEY;
+  const model = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
+
   const body = {
-    model: OPENROUTER_MODEL,
+    model,
     max_tokens: maxTokens,
     temperature,
     messages,
-    include_reasoning: false,
   };
 
   if (tools && tools.length > 0) {
@@ -27,14 +29,14 @@ async function chatCompletion({ messages, tools, maxTokens = 1000, temperature =
   const RETRY_DELAY_MS = 2000;
   let attempt = 0;
   let res;
+
   while (attempt < MAX_RETRIES) {
     try {
       res = await fetch(BASE_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          // Optional but recommended for OpenRouter app identification
           'HTTP-Referer': process.env.APP_URL || 'https://discord.com',
           'X-Title': 'Cutie Discord Bot',
         },
@@ -64,6 +66,7 @@ async function chatCompletion({ messages, tools, maxTokens = 1000, temperature =
         }
         throw new Error(`OpenRouter error: ${data.error.message || JSON.stringify(data.error)}`);
       }
+
       choice = data.choices?.[0];
       if (!choice) {
         throw new Error(`No response returned from OpenRouter. Full response: ${JSON.stringify(data)}`);
@@ -71,7 +74,6 @@ async function chatCompletion({ messages, tools, maxTokens = 1000, temperature =
       // Successful response, break loop
       break;
     } catch (err) {
-      // If it's the last attempt, rethrow
       if (attempt >= MAX_RETRIES - 1) {
         throw err;
       }
@@ -81,23 +83,19 @@ async function chatCompletion({ messages, tools, maxTokens = 1000, temperature =
     }
   }
 
-  // At this point, `choice` is defined from the successful attempt
-  // Continue processing as before
-  // Note: `choice` variable is in scope for the rest of the function
-
   if (!choice) {
     throw new Error(`No response returned from OpenRouter. Full response: ${JSON.stringify(data)}`);
   }
 
-  // Ensure the response contains at least some content to satisfy the model output requirements
-  if (!choice.message || (!choice.message.content && (!choice.message.tool_calls || choice.message.tool_calls.length === 0))) {
-    // Provide a generic fallback message
-    choice.message = {
-      role: 'assistant',
-      content: "I'm sorry, I couldn't generate a response right now. Please try again later.",
-    };
+  // Handle reasoning/thinking models where text might be in reasoning field
+  if (choice.message && !choice.message.content && choice.message.reasoning) {
+    choice.message.content = choice.message.reasoning;
   }
 
+  // Ensure the response contains content or tool calls; throw error if empty so caller fallback is triggered
+  if (!choice.message || (!choice.message.content && (!choice.message.tool_calls || choice.message.tool_calls.length === 0))) {
+    throw new Error('OpenRouter response contains empty content and no tool calls.');
+  }
 
   return choice.message; // { role: 'assistant', content, tool_calls? }
 }
