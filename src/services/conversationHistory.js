@@ -19,10 +19,10 @@ function combineAllChatsIntoOne(messages) {
     });
 
   if (formattedLines.length === 0) {
-    return `[Rekap 50 percakapan sebelumnya]:\nPercakapan santai seputar berbagai hal bersama Master.`;
+    return `[Archive of previous 50 messages]:\nCasual conversation on various topics with Master.`;
   }
 
-  return `[Rekap/Arsip 50 percakapan sebelumnya]:\n${formattedLines.join('\n')}`;
+  return `[Archive of previous 50 messages]:\n${formattedLines.join('\n')}`;
 }
 
 /**
@@ -43,11 +43,11 @@ async function generateConversationRecap(messages) {
         messages: [
           {
             role: 'system',
-            content: 'Kamu adalah modul memori AI untuk Cutie. Buatlah ringkasan/rekap percakapan yang padat, jelas, dan terstruktur dari 50 pesan percakapan sebelumnya dalam bahasa Indonesia. Rekap harus mencatat: (1) Informasi pribadi atau preferensi Master yang disebutkan, (2) Topik-topik penting dan diskusi yang telah dibahas, (3) Janji, pengingat, atau tugas yang pernah dibicarakan. Format dalam 3-5 kalimat narasi atau poin penting ringkas.',
+            content: 'You are an AI memory module for Cutie. Create a dense, clear, and structured summary of the previous 50 messages. Note: (1) Personal information or user preferences mentioned, (2) Key topics and discussions, (3) Promises, reminders, or tasks discussed. Keep it within 3-5 concise narrative sentences or key bullet points.',
           },
           {
             role: 'user',
-            content: `Berikut adalah riwayat percakapan yang harus direkap:\n\n${formatted.slice(0, 10000)}`,
+            content: `Here is the conversation history to summarize:\n\n${formatted.slice(0, 10000)}`,
           },
         ],
         maxTokens: 800,
@@ -60,12 +60,11 @@ async function generateConversationRecap(messages) {
         recapContent.toLowerCase().includes("couldn't generate a response") ||
         recapContent.toLowerCase().includes("i'm sorry") ||
         recapContent.toLowerCase().includes("please try again") ||
-        recapContent.toLowerCase().includes("sepertinya aku sedikit bingung") ||
         recapContent.toLowerCase().includes("placeholder") ||
-        recapContent.toLowerCase().includes("tidak ada isi");
+        recapContent.toLowerCase().includes("no content");
 
       if (!isInvalid) {
-        return `[Rekap 50 percakapan sebelumnya]:\n${recapContent}`;
+        return `[Archive of previous 50 messages]:\n${recapContent}`;
       }
       console.warn(`[ChatHistory] AI recap attempt ${attempt} returned invalid content, retrying...`);
     } catch (err) {
@@ -73,7 +72,7 @@ async function generateConversationRecap(messages) {
     }
   }
 
-  // Jika gagal 2-3x, langsung copas semua 50 chat dijadiin 1 baris
+  // Fallback: combine all 50 chats into 1 archive row
   console.log('[ChatHistory] AI recap failed after retries. Combining all 50 chats into 1 archive row.');
   return combineAllChatsIntoOne(messages);
 }
@@ -234,7 +233,9 @@ function isCorruptedContent(content) {
   const lower = content.toLowerCase();
   return lower.includes("couldn't generate a response") ||
     lower.includes("please try again later") ||
-    (lower.startsWith("[rekap") && lower.includes("i'm sorry"));
+    lower.includes("terjadi kesalahan saat memproses") ||
+    lower.includes("maafkan aku, sepertinya aku sedikit bingung") ||
+    ((lower.startsWith("[rekap") || lower.startsWith("[archive") || lower.startsWith("[summary")) && (lower.includes("i'm sorry") || lower.includes("maaf")));
 }
 
 // Stores one turn (role: 'user' | 'assistant') and triggers compaction when 50 messages is reached.

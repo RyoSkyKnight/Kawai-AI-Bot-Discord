@@ -83,8 +83,8 @@ function createThinkingEmbed(personality) {
   return new EmbedBuilder()
     .setColor(p.color || '#FF69B4')
     .setTitle(`${p.emoji || '💕'} Cutie AI • ${p.name || 'Companion'}`)
-    .setDescription('*(Cutie sedang berpikir dan menyiapkan jawaban terbaik untuk Master...)* ✨')
-    .setFooter({ text: `${p.name || 'Cutie'} AI • Sedang memproses...` });
+    .setDescription('*(Cutie is thinking and preparing the best response for Master...)* ✨')
+    .setFooter({ text: `${p.name || 'Cutie'} AI • Processing...` });
 }
 
 /**
@@ -102,7 +102,7 @@ function buildModernAiEmbed({
   const embed = new EmbedBuilder()
     .setColor(p.color || '#FF69B4')
     .setTitle(`${p.emoji || '💕'} Cutie AI • ${p.name || 'Companion'}`)
-    .setDescription(pageText || '*(Cutie tersenyum manis...)*')
+    .setDescription(pageText || '*(Cutie smiles warmly...)*')
     .setTimestamp();
 
   if (user) {

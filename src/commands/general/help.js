@@ -8,21 +8,21 @@ const {
 
 const CATEGORIES = {
   overview: {
-    label: 'Menu Utama',
+    label: 'Main Menu',
     emoji: '🏠',
-    description: 'Kembali ke ringkasan semua kategori bantuan',
+    description: 'Return to the overview of all help categories',
     color: '#FFB6E1',
-    title: '🌸 Cutie Bot — Pusat Bantuan & Perintah',
+    title: '🌸 Cutie Bot — Help & Command Center',
     descriptionText:
-      'Halo! Aku **Cutie**, asisten AI dan bot multifungsi untuk servermu. (◕‿◕)♡\n\n' +
-      'Pilih salah satu kategori dari **menu pilihan di bawah** untuk melihat daftar perintah beserta fungsinya secara mendalam.\n\n' +
-      '✨ **Fitur Utama:**\n' +
-      '• **🤖 AI Pintar**: Ngobrol langsung cukup dengan me-mention bot atau lewat `/ask`\n' +
-      '• **🛠️ Utilitas Lengkap**: Terjemahan, kalkulator, cuaca, QR Code, dan kamus\n' +
-      '• **🛡️ Moderasi Tangguh**: Auto-mute spam, filter kata kasar, kick/ban/timeout\n' +
-      '• **🎮 Fun & Hiburan**: Trivia, polling, anime info, tebak-tebakan, dan crypto',
+      'Hello! I am **Cutie**, an AI companion and multi-purpose bot for your server. (◕‿◕)♡\n\n' +
+      'Select a category from the **dropdown menu below** to explore the complete list of commands and their functions.\n\n' +
+      '✨ **Key Highlights:**\n' +
+      '• **🤖 Smart AI**: Chat naturally by mentioning the bot or via `/ask`\n' +
+      '• **🛠️ Complete Utilities**: Translations, calculator, weather, QR Codes, and dictionaries\n' +
+      '• **🛡️ Robust Moderation**: Anti-spam auto-mute, bad words filter, kick/ban/timeout\n' +
+      '• **🎮 Fun & Entertainment**: Trivia, polls, anime info, jokes, memes, and crypto prices',
     fields: [
-      { name: '🤖 AI & General', value: '`/ask` `/personality` `/profile` `/ping` `/botinfo` `/uptime` `/clearhistory`', inline: true },
+      { name: '🤖 AI & General', value: '`/ask` `/setpersonality` `/profile` `/ping` `/botinfo` `/uptime` `/clearhistory`', inline: true },
       { name: '🎮 Fun & Games', value: '`/roll` `/coinflip` `/8ball` `/joke` `/fact` `/trivia` `/meme` `/quote` `/choose`', inline: true },
       { name: '🛠️ Utilities', value: '`/translate` `/calculate` `/weather` `/wiki` `/urban` `/define` `/qr` `/shorten`', inline: true },
       { name: '🎬 Media', value: '`/anime` `/movie` `/crypto` `/gif` `/cat` `/dog`', inline: true },
@@ -35,145 +35,145 @@ const CATEGORIES = {
   ai_general: {
     label: 'AI & General',
     emoji: '🤖',
-    description: 'Perintah kecerdasan buatan dan informasi umum bot',
+    description: 'Artificial intelligence commands and general bot information',
     color: '#FFB6E1',
-    title: '🤖 Kategori: AI & General',
-    descriptionText: 'Fitur percakapan pintar bertenaga OpenRouter / Gemini beserta perintah umum bot:',
+    title: '🤖 Category: AI & General',
+    descriptionText: 'Smart conversational companion powered by AI along with general bot commands:',
     fields: [
-      { name: '`/ask [question]`', value: 'Ajukan pertanyaan apapun kepada AI dengan respon card modern.', inline: false },
-      { name: '`/setpersonality [style]`', value: 'Ganti kepribadian AI (Sweet, Tsundere, Cool, Sarcastic, Assistant).', inline: false },
-      { name: '`/clearhistory`', value: 'Hapus riwayat ingatan percakapan AI untuk memori baru yang segar.', inline: false },
-      { name: '`/profile [user]`', value: 'Lihat profil Discord pengguna secara detail.', inline: false },
-      { name: '`/avatar [user]`', value: 'Lihat dan dapatkan tautan avatar ukuran penuh.', inline: false },
-      { name: '`/ping`', value: 'Cek latensi bot dan kecepatan koneksi WebSocket Discord.', inline: false },
-      { name: '`/botinfo`', value: 'Dashboard statistik bot, penggunaan memori RAM, dan uptime.', inline: false },
-      { name: '`/serverinfo`', value: 'Informasi lengkap mengenai server saat ini.', inline: false },
-      { name: '`/uptime`', value: 'Waktu aktif bot sejak terakhir kali dihidupkan.', inline: false },
+      { name: '`/ask [question]`', value: 'Ask any question to the AI with modern embed cards.', inline: false },
+      { name: '`/setpersonality [style]`', value: 'Switch AI personality (Sweet, Tsundere, Cool, Sarcastic, Assistant).', inline: false },
+      { name: '`/clearhistory`', value: 'Clear your conversation memory for a fresh new chat context.', inline: false },
+      { name: '`/profile [user]`', value: 'View detailed Discord user profile and server membership.', inline: false },
+      { name: '`/avatar [user]`', value: 'View and get the direct link for full-size user avatars.', inline: false },
+      { name: '`/ping`', value: 'Check bot latency and Discord WebSocket connection speed.', inline: false },
+      { name: '`/botinfo`', value: 'Bot statistics dashboard, RAM usage, and uptime.', inline: false },
+      { name: '`/serverinfo`', value: 'Comprehensive information regarding the current server.', inline: false },
+      { name: '`/uptime`', value: 'Bot uptime duration since its last startup.', inline: false },
     ],
   },
   fun: {
     label: 'Fun & Games',
     emoji: '🎮',
-    description: 'Permainan seru, tebakan, dan hiburan interaktif',
+    description: 'Fun games, mini-challenges, and interactive entertainment',
     color: '#FFD166',
-    title: '🎮 Kategori: Fun & Games',
-    descriptionText: 'Kumpulan permainan ringan untuk menghidupkan suasana obrolan server:',
+    title: '🎮 Category: Fun & Games',
+    descriptionText: 'Casual mini-games and entertainment to liven up your server channels:',
     fields: [
-      { name: '`/roll [sides]`', value: 'Lempar dadu dengan jumlah sisi yang bisa kamu atur.', inline: false },
-      { name: '`/coinflip`', value: 'Lempar koin untuk menentukan Pilihan (Kepala vs Ekor).', inline: false },
-      { name: '`/8ball [question]`', value: 'Tanyakan masa depanmu pada bola ramalan ajaib 8-Ball.', inline: false },
-      { name: '`/trivia`', value: 'Uji wawasanmu dengan kuis trivia pilihan ganda interaktif.', inline: false },
-      { name: '`/choose [choices]`', value: 'Bimbang? Biarkan bot memilihkan opsi terbaik untukmu.', inline: false },
-      { name: '`/joke`', value: 'Kirim lelucon lucu untuk membuat harimu lebih ceria.', inline: false },
-      { name: '`/fact`', value: 'Fakta unik dan menarik dari seluruh penjuru dunia.', inline: false },
-      { name: '`/meme`', value: 'Ambil meme lucu secara acak langsung dari Reddit.', inline: false },
-      { name: '`/quote`', value: 'Kutipan motivasi dan inspirasi dari tokoh-tokoh hebat.', inline: false },
+      { name: '`/roll [sides]`', value: 'Roll a dice with custom number of sides (2-1000).', inline: false },
+      { name: '`/coinflip`', value: 'Flip a coin to decide choices (Heads vs Tails).', inline: false },
+      { name: '`/8ball [question]`', value: 'Ask the magical 8-Ball about your future or questions.', inline: false },
+      { name: '`/trivia`', value: 'Test your knowledge with interactive multiple-choice trivia quizzes.', inline: false },
+      { name: '`/choose [choices]`', value: 'Undecided? Let the bot pick the best option for you.', inline: false },
+      { name: '`/joke`', value: 'Send a funny joke to brighten up your day.', inline: false },
+      { name: '`/fact`', value: 'Fascinating and curious fun facts from across the world.', inline: false },
+      { name: '`/meme`', value: 'Fetch a random funny meme directly from Reddit.', inline: false },
+      { name: '`/quote`', value: 'Motivational and inspiring quotes from great historical figures.', inline: false },
     ],
   },
   utility: {
     label: 'Utilities',
     emoji: '🛠️',
-    description: 'Alat bantu terjemahan, hitung, cuaca, dan info web',
+    description: 'Helpful tools for translation, math, weather, and web info',
     color: '#06D6A0',
-    title: '🛠️ Kategori: Utilities',
-    descriptionText: 'Kakas praktis sehari-hari untuk produktivitas di server:',
+    title: '🛠️ Category: Utilities',
+    descriptionText: 'Practical everyday tools to boost your productivity in the server:',
     fields: [
-      { name: '`/translate [text] [to]`', value: 'Terjemahkan teks ke berbagai bahasa di dunia.', inline: false },
-      { name: '`/calculate [expression]`', value: 'Kalkulator matematika akurat untuk hitungan rumit.', inline: false },
-      { name: '`/weather [city]`', value: 'Cek prakiraan cuaca, suhu, dan kelembapan di kota mana pun.', inline: false },
-      { name: '`/wiki [query]`', value: 'Cari ringkasan ensiklopedia langsung dari Wikipedia.', inline: false },
-      { name: '`/urban [term]`', value: 'Cari arti istilah gaul dan slang di Urban Dictionary.', inline: false },
-      { name: '`/define [word]`', value: 'Definisi resmi kata dari kamus bahasa Inggris.', inline: false },
-      { name: '`/qr [text/link]`', value: 'Buat gambar QR code siap scan dari teks atau link.', inline: false },
-      { name: '`/shorten [url]`', value: 'Persingkat link web yang panjang menjadi ringkas.', inline: false },
-      { name: '`/ascii [text]`', value: 'Ubah teks biasa menjadi seni teks ASCII banner yang keren.', inline: false },
-      { name: '`/reverse [text]`', value: 'Balik susunan huruf pada teksmu.', inline: false },
+      { name: '`/translate [text] [to]`', value: 'Translate text into various world languages.', inline: false },
+      { name: '`/calculate [expression]`', value: 'Accurate mathematical calculator for complex expressions.', inline: false },
+      { name: '`/weather [city]`', value: 'Check weather forecast, temperature, and humidity for any city.', inline: false },
+      { name: '`/wiki [query]`', value: 'Search Wikipedia for direct summaries and links.', inline: false },
+      { name: '`/urban [term]`', value: 'Look up slang terms and internet phrases on Urban Dictionary.', inline: false },
+      { name: '`/define [word]`', value: 'Official English dictionary definition and phonetic transcription.', inline: false },
+      { name: '`/qr [text/link]`', value: 'Generate a scannable QR code image from any text or URL.', inline: false },
+      { name: '`/shorten [url]`', value: 'Shorten long URLs into clean, compact links.', inline: false },
+      { name: '`/ascii [text]`', value: 'Convert standard text into eye-catching ASCII text banners.', inline: false },
+      { name: '`/reverse [text]`', value: 'Reverse the order of characters in your text.', inline: false },
     ],
   },
   media: {
     label: 'Media & Pop Culture',
     emoji: '🎬',
-    description: 'Informasi anime, film layar lebar, crypto, dan hewan lucu',
+    description: 'Anime information, movies, cryptocurrency, and cute pets',
     color: '#118AB2',
-    title: '🎬 Kategori: Media & Pop Culture',
-    descriptionText: 'Pencarian media, informasi pasar crypto, dan hiburan visual:',
+    title: '🎬 Category: Media & Pop Culture',
+    descriptionText: 'Media searches, crypto market information, and visual fun:',
     fields: [
-      { name: '`/anime [title]`', value: 'Informasi sinopsis, rating, dan episode anime dari MyAnimeList.', inline: false },
-      { name: '`/movie [title]`', value: 'Detail informasi dan rating film layar lebar favoritmu.', inline: false },
-      { name: '`/crypto [coin]`', value: 'Cek harga real-time mata uang kripto (Bitcoin, Ethereum, dll.).', inline: false },
-      { name: '`/gif [search]`', value: 'Cari dan kirim GIF animasi lucu melalui Tenor.', inline: false },
-      { name: '`/cat`', value: 'Tampilkan foto kucing lucu dan menggemaskan secara acak.', inline: false },
-      { name: '`/dog`', value: 'Tampilkan foto anjing manis secara acak.', inline: false },
+      { name: '`/anime [title]`', value: 'Synopsis, rating, and episode information from MyAnimeList.', inline: false },
+      { name: '`/movie [title]`', value: 'Detailed information and ratings for your favorite movies.', inline: false },
+      { name: '`/crypto [coin]`', value: 'Check real-time spot prices of cryptocurrencies (BTC, ETH, etc.).', inline: false },
+      { name: '`/gif [search]`', value: 'Search and send funny animated GIFs via Tenor.', inline: false },
+      { name: '`/cat`', value: 'Display a cute and adorable random cat photo.', inline: false },
+      { name: '`/dog`', value: 'Display a cute and lovely random dog photo.', inline: false },
     ],
   },
   social: {
     label: 'Social & Community',
     emoji: '💬',
-    description: 'Polling interaktif, pengingat jadwal, AFK status, dan embed',
+    description: 'Interactive polls, reminders, AFK status, and custom embeds',
     color: '#8338EC',
-    title: '💬 Kategori: Social & Community',
-    descriptionText: 'Fitur sosial untuk interaksi antar anggota komunitas server:',
+    title: '💬 Category: Social & Community',
+    descriptionText: 'Community features for social interaction between server members:',
     fields: [
-      { name: '`/poll [question] [options]`', value: 'Buat polling voting interaktif dengan tombol reaksi otomatis.', inline: false },
-      { name: '`/remind [time] [message]`', value: 'Pasang pengingat jadwal (contoh: 10m, 1h, 2d). Bot akan me-mentionmu!', inline: false },
-      { name: '`/afk [reason]`', value: 'Atur status AFK (Away From Keyboard). Bot akan menginfokan bila di-mention.', inline: false },
-      { name: '`/embed [title] [description]`', value: 'Buat pesan embed rapi dengan format warna kustom.', inline: false },
+      { name: '`/poll [question] [options]`', value: 'Create interactive voting polls with automatic number reaction emojis.', inline: false },
+      { name: '`/remind [time] [message]`', value: 'Set a scheduled reminder (e.g. 10m, 1h, 2d). The bot will mention you!', inline: false },
+      { name: '`/afk [reason]`', value: 'Set AFK (Away From Keyboard) status. Bot alerts users who mention you.', inline: false },
+      { name: '`/embed [title] [description]`', value: 'Create neat Discord embed messages with custom styling.', inline: false },
     ],
   },
   moderation: {
     label: 'Moderation',
     emoji: '🛡️',
-    description: 'Pengelolaan keamanan, hukuman, dan sanksi anggota',
+    description: 'Security management, member discipline, and moderation logs',
     color: '#EF476F',
-    title: '🛡️ Kategori: Moderation',
-    descriptionText: 'Perintah khusus staff/moderator untuk menjaga ketertiban server:',
+    title: '🛡️ Category: Moderation',
+    descriptionText: 'Dedicated staff/moderator commands to maintain server order:',
     fields: [
-      { name: '`/warn [user] [reason]`', value: 'Beri peringatan resmi kepada anggota yang melanggar aturan.', inline: false },
-      { name: '`/warnings [user]`', value: 'Lihat daftar riwayat peringatan yang pernah diterima user.', inline: false },
-      { name: '`/clearwarnings [user]`', value: 'Hapus seluruh catatan peringatan user.', inline: false },
-      { name: '`/timeout [user] [duration]`', value: 'Bungkam sementara anggota (contoh: 10m, 1h, 1d).', inline: false },
-      { name: '`/untimeout [user]`', value: 'Cabut status timeout sebelum durasi berakhir.', inline: false },
-      { name: '`/kick [user] [reason]`', value: 'Keluarkan anggota dari server.', inline: false },
-      { name: '`/ban [user] [reason]`', value: 'Blokir anggota secara permanen dari server.', inline: false },
-      { name: '`/unban [user_id]`', value: 'Cabut sanksi blokir user menggunakan User ID.', inline: false },
-      { name: '`/clear [amount]`', value: 'Hapus pesan massal dalam satu channel (maksimal 100 pesan).', inline: false },
-      { name: '`/slowmode [seconds]`', value: 'Atur jeda waktu pengiriman pesan di channel.', inline: false },
-      { name: '`/lock` & `/unlock`', value: 'Kunci atau buka kembali izin kirim pesan di channel.', inline: false },
-      { name: '`/modstats`', value: 'Lihat statistik aktivitas sanksi yang telah diberikan moderator.', inline: false },
+      { name: '`/warn [user] [reason]`', value: 'Issue an official warning to a rule-breaking member.', inline: false },
+      { name: '`/warnings [user]`', value: 'View warning history recorded for a user.', inline: false },
+      { name: '`/clearwarnings [user]`', value: 'Clear all warning records for a user.', inline: false },
+      { name: '`/timeout [user] [duration]`', value: 'Temporarily mute/timeout a member (e.g. 10m, 1h, 1d).', inline: false },
+      { name: '`/untimeout [user]`', value: 'Lift timeout status from a member before it expires.', inline: false },
+      { name: '`/kick [user] [reason]`', value: 'Kick a member from the server.', inline: false },
+      { name: '`/ban [user] [reason]`', value: 'Permanently ban a member from the server.', inline: false },
+      { name: '`/unban [user_id]`', value: 'Unban a user using their User ID or username.', inline: false },
+      { name: '`/clear [amount]`', value: 'Bulk delete messages in the channel (up to 100 messages).', inline: false },
+      { name: '`/slowmode [seconds]`', value: 'Set per-user message rate limit slowmode for the channel.', inline: false },
+      { name: '`/lock` & `/unlock`', value: 'Lock or unlock message send permissions in the channel.', inline: false },
+      { name: '`/modstats`', value: 'View server moderation action breakdown statistics.', inline: false },
     ],
   },
   server: {
-    label: 'Server Setup & Auto-Mute',
+    label: 'Server Setup & Automation',
     emoji: '⚙️',
-    description: 'Konfigurasi otomatisasi, welcome, log, dan filter kata',
+    description: 'Automation configuration, welcome messages, logging, and word filters',
     color: '#3A86FF',
-    title: '⚙️ Kategori: Server Setup & Otomasi',
-    descriptionText: 'Pengaturan otomatisasi sistem untuk kenyamanan server:',
+    title: '⚙️ Category: Server Setup & Automation',
+    descriptionText: 'System automation and administrative configurations for server quality of life:',
     fields: [
-      { name: '`/setwelcome` & `/removewelcome`', value: 'Atur pesan & channel sambutan otomatis bagi member baru.', inline: false },
-      { name: '`/setgoodbye` & `/removegoodbye`', value: 'Atur pesan perpisahan bila ada member yang meninggalkan server.', inline: false },
-      { name: '`/autorole` & `/removeautorole`', value: 'Berikan role otomatis kepada siapa saja yang baru bergabung.', inline: false },
-      { name: '`/setlog` & `/removelog`', value: 'Tentukan channel pencatatan audit log moderasi server.', inline: false },
-      { name: '`/setaskchannel` & `/removeaskchannel`', value: 'Tetapkan channel khusus ngobrol bebas dengan Cutie AI.', inline: false },
-      { name: '`/setautomute` & `/removeautomute`', value: 'Aktifkan deteksi anti-spam otomatis (contoh: 5 pesan dalam 5 detik).', inline: false },
-      { name: '`/addbadword` & `/removebadword`', value: 'Kelola daftar kata terlarang / kata kasar server.', inline: false },
-      { name: '`/setbadwordmute`', value: 'Auto-mute otomatis bagi pengguna yang mengucapkan kata terlarang.', inline: false },
+      { name: '`/setwelcome` & `/removewelcome`', value: 'Configure automatic welcome messages and channel for new members.', inline: false },
+      { name: '`/setgoodbye` & `/removegoodbye`', value: 'Configure goodbye messages when a member leaves the server.', inline: false },
+      { name: '`/autorole` & `/removeautorole`', value: 'Automatically assign a default role to new members upon joining.', inline: false },
+      { name: '`/setlog` & `/removelog`', value: 'Set the dedicated audit log channel for server moderation actions.', inline: false },
+      { name: '`/setaskchannel` & `/removeaskchannel`', value: 'Set a dedicated channel for free-flow chat with Cutie AI.', inline: false },
+      { name: '`/setautomute` & `/removeautomute`', value: 'Enable anti-spam detection (e.g. 5 messages within 5 seconds).', inline: false },
+      { name: '`/addbadword` & `/removebadword`', value: 'Manage the server blacklisted / forbidden words filter list.', inline: false },
+      { name: '`/setbadwordmute`', value: 'Enable auto-mute when members use blacklisted words.', inline: false },
     ],
   },
   roles: {
     label: 'Role Management',
     emoji: '🎭',
-    description: 'Pembuatan, penghapusan, dan pemberian peran anggota',
+    description: 'Creation, removal, assignment, and inspection of server roles',
     color: '#9C27B0',
-    title: '🎭 Kategori: Role Management',
-    descriptionText: 'Pengelolaan peran (roles) server dengan cepat:',
+    title: '🎭 Category: Role Management',
+    descriptionText: 'Fast and convenient server role management:',
     fields: [
-      { name: '`/addrole [user] [role]`', value: 'Berikan sebuah role kepada anggota tertentu.', inline: false },
-      { name: '`/removerole [user] [role]`', value: 'Lepaskan role dari seorang anggota.', inline: false },
-      { name: '`/createrole [name] [color]`', value: 'Buat role baru dengan nama dan kode warna pilihanmu.', inline: false },
-      { name: '`/deleterole [role]`', value: 'Hapus role yang sudah tidak digunakan lagi dari server.', inline: false },
-      { name: '`/roleinfo [role]`', value: 'Cek rincian informasi dan anggota pemilik role tersebut.', inline: false },
-      { name: '`/roles`', value: 'Tampilkan seluruh daftar role yang ada di server.', inline: false },
+      { name: '`/addrole [user] [role]`', value: 'Assign a role to a specified member.', inline: false },
+      { name: '`/removerole [user] [role]`', value: 'Remove a role from a specified member.', inline: false },
+      { name: '`/createrole [name] [color]`', value: 'Create a new role with a custom name and color hex.', inline: false },
+      { name: '`/deleterole [role]`', value: 'Delete an unused role from the server.', inline: false },
+      { name: '`/roleinfo [role]`', value: 'Inspect detailed role permissions and member count.', inline: false },
+      { name: '`/roles`', value: 'List all existing roles present in the server.', inline: false },
     ],
   },
 };
@@ -185,7 +185,7 @@ function buildCategoryEmbed(categoryKey) {
     .setColor(cat.color)
     .setTitle(cat.title)
     .setDescription(cat.descriptionText)
-    .setFooter({ text: 'Gunakan dropdown di bawah untuk berpindah kategori • Cutie Bot' })
+    .setFooter({ text: 'Use the dropdown menu below to switch categories • Cutie Bot' })
     .setTimestamp();
 
   if (cat.fields && cat.fields.length > 0) {
@@ -198,7 +198,7 @@ function buildCategoryEmbed(categoryKey) {
 function buildSelectMenu(selectedKey = 'overview') {
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
-    .setPlaceholder('📂 Pilih Kategori Bantuan...')
+    .setPlaceholder('📂 Select a Help Category...')
     .addOptions(
       Object.entries(CATEGORIES).map(([key, item]) =>
         new StringSelectMenuOptionBuilder()
@@ -216,7 +216,7 @@ function buildSelectMenu(selectedKey = 'overview') {
 module.exports = {
   data: {
     name: 'help',
-    description: 'Buka menu panduan dan daftar lengkap perintah bot Cutie',
+    description: 'Open the help menu and complete command guide for Cutie bot',
   },
   async execute(interaction) {
     await interaction.deferReply();
@@ -253,11 +253,11 @@ module.exports = {
       try {
         const disabledSelect = new StringSelectMenuBuilder()
           .setCustomId('help_category_disabled')
-          .setPlaceholder('⏳ Menu bantuan telah kedaluwarsa. Ketik /help kembali.')
+          .setPlaceholder('⏳ Help menu has expired. Type /help again.')
           .setDisabled(true)
           .addOptions(
             new StringSelectMenuOptionBuilder()
-              .setLabel('Kedaluwarsa')
+              .setLabel('Expired')
               .setValue('expired')
           );
 

@@ -45,7 +45,7 @@ function extractUserId(raw) {
 }
 
 async function resolveTarget(interaction, userIdRaw) {
-  if (!userIdRaw) return { error: 'Target pengguna belum ditentukan. Silakan sebutkan @mention atau ID pengguna.' };
+  if (!userIdRaw) return { error: 'Target user was not specified. Please mention or provide a user ID.' };
   const userId = extractUserId(userIdRaw);
   if (userId) {
     const user = await interaction.client.users.fetch(userId).catch(() => null);
@@ -77,7 +77,7 @@ async function resolveTarget(interaction, userIdRaw) {
     }
   }
 
-  return { error: 'Pengguna tidak ditemukan. Silakan gunakan @mention atau user ID yang valid.' };
+  return { error: 'Target user was not found. Please provide a valid @mention or user ID.' };
 }
 
 // Role hierarchy & self/owner protection rules.
@@ -88,37 +88,37 @@ function checkHierarchy(interaction, member, botMember, action = null) {
 
   // 1. Cannot moderate the server owner
   if (member.id === guild.ownerId) {
-    return "Tidak dapat melakukan tindakan moderasi terhadap Owner server.";
+    return "Cannot perform moderation actions against the server Owner.";
   }
 
   // 2. Cannot moderate the bot itself
   if (member.id === botMember?.id || member.id === interaction.client?.user?.id) {
-    return "Aku tidak bisa melakukan tindakan moderasi terhadap diriku sendiri!";
+    return "I cannot perform moderation actions against myself!";
   }
 
   // 3. User cannot moderate themselves
   if (member.id === interaction.user.id) {
-    return "Master tidak bisa melakukan tindakan moderasi terhadap diri sendiri!";
+    return "You cannot perform moderation actions against yourself!";
   }
 
   // 4. Bot permission & role hierarchy check
   if (action === 'kick' && !member.kickable) {
-    return "Aku tidak bisa me-kick user ini karena role mereka sejajar atau lebih tinggi dari role tertinggiku.";
+    return "I cannot kick this user because their role is equal to or higher than my highest role.";
   }
   if (action === 'ban' && !member.bannable) {
-    return "Aku tidak bisa mem-ban user ini karena role mereka sejajar atau lebih tinggi dari role tertinggiku.";
+    return "I cannot ban this user because their role is equal to or higher than my highest role.";
   }
   if ((action === 'timeout' || action === 'mute') && !member.moderatable) {
-    return "Aku tidak bisa me-mute/timeout user ini karena role mereka sejajar atau lebih tinggi dari role tertinggiku.";
+    return "I cannot mute/timeout this user because their role is equal to or higher than my highest role.";
   }
   if (botMember && member.roles.highest.position >= botMember.roles.highest.position) {
-    return "Aku tidak bisa melakukan itu — role tertinggi mereka sejajar atau di atas role tertinggiku.";
+    return "I cannot do that — their highest role is equal to or above my highest role.";
   }
 
   // 5. Invoking user role hierarchy check (guild owner is exempt)
   if (interaction.user.id !== guild.ownerId && interaction.member) {
     if (member.roles.highest.position >= interaction.member.roles.highest.position) {
-      return "Master tidak bisa melakukan tindakan ini — role tertinggi target sejajar atau lebih tinggi dari role Master.";
+      return "You cannot do that — the target's highest role is equal to or higher than yours.";
     }
   }
 
@@ -254,12 +254,12 @@ const tools = {
       type: 'function',
       function: {
         name: 'timeout_user',
-        description: 'Timeout (temporarily mute) a user in the server (e.g. "timeout @user 10m", "mute @user 1 jam"). Maximum duration is 28 days.',
+        description: 'Timeout (temporarily mute) a user in the server (e.g. "timeout @user 10m", "mute @user 1h"). Maximum duration is 28 days.',
         parameters: {
           type: 'object',
           properties: {
             userId: { type: 'string', description: 'Discord user ID or mention' },
-            duration: { type: 'string', description: 'Duration like 10m, 10 menit, 1h, 1d (defaults to 10m if omitted)' },
+            duration: { type: 'string', description: 'Duration like 10m, 1h, 1d (defaults to 10m if omitted)' },
             reason: { type: 'string', description: 'Reason for the timeout/mute' },
           },
           required: ['userId'],
@@ -269,12 +269,12 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return { ok: false, message: "Bot tidak memiliki izin Moderate Members di server ini." };
+        return { ok: false, message: "I am missing the Moderate Members permission in this server." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
       if (error) return { ok: false, message: error };
-      if (!member) return { ok: false, message: `${user.tag} bukan anggota server ini saat ini.` };
+      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
 
       const hierarchyError = checkHierarchy(interaction, member, botMember, 'timeout');
       if (hierarchyError) return { ok: false, message: hierarchyError };
@@ -282,7 +282,7 @@ const tools = {
       const rawDuration = args.duration || args.time || '10m';
       const ms = parseDuration(rawDuration);
       if (!ms || ms > 2419200000) {
-        return { ok: false, message: 'Durasi timeout tidak valid. Gunakan format seperti 10 menit, 1h, 1d (maksimal 28 hari).' };
+        return { ok: false, message: 'Invalid timeout duration. Use formats like 10m, 1h, 1d (maximum 28 days).' };
       }
 
       const reason = args.reason || 'Timed out via Cutie AI';
@@ -294,7 +294,7 @@ const tools = {
         .setTitle('User Timed Out (via Cutie AI)')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
-          { name: 'Duration', value: formatDuration(ms, 'id'), inline: true },
+          { name: 'Duration', value: formatDuration(ms, 'en'), inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
           { name: 'Reason', value: reason, inline: false }
         )
@@ -303,7 +303,7 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Berhasil me-mute/timeout ${user.tag} selama ${formatDuration(ms, 'id')}.` };
+      return { ok: true, message: `Successfully timed out/muted ${user.tag} for ${formatDuration(ms, 'en')}.` };
     },
   },
 
@@ -313,12 +313,12 @@ const tools = {
       type: 'function',
       function: {
         name: 'mute_user',
-        description: 'Mute / timeout a user in the server (e.g. "tolong mute @user 10 menit", "mute @user 1h"). Alias for timeout_user.',
+        description: 'Mute / timeout a user in the server (e.g. "mute @user 10m", "mute @user 1h"). Alias for timeout_user.',
         parameters: {
           type: 'object',
           properties: {
             userId: { type: 'string', description: 'Discord user ID or mention' },
-            duration: { type: 'string', description: 'Duration like 10m, 10 menit, 1h, 1d (defaults to 10m if omitted)' },
+            duration: { type: 'string', description: 'Duration like 10m, 1h, 1d (defaults to 10m if omitted)' },
             reason: { type: 'string', description: 'Reason for the mute' },
           },
           required: ['userId'],
@@ -336,7 +336,7 @@ const tools = {
       type: 'function',
       function: {
         name: 'untimeout_user',
-        description: 'Remove timeout / unmute a user in the server (e.g. "tolong unmute @user", "lepas timeout @user").',
+        description: 'Remove timeout / unmute a user in the server (e.g. "unmute @user", "remove timeout @user").',
         parameters: {
           type: 'object',
           properties: {
@@ -350,12 +350,12 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return { ok: false, message: "Bot tidak memiliki izin Moderate Members di server ini." };
+        return { ok: false, message: "I am missing the Moderate Members permission in this server." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
       if (error) return { ok: false, message: error };
-      if (!member) return { ok: false, message: `${user.tag} bukan anggota server ini saat ini.` };
+      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
 
       const hierarchyError = checkHierarchy(interaction, member, botMember, 'untimeout');
       if (hierarchyError) return { ok: false, message: hierarchyError };
@@ -377,7 +377,7 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Berhasil melepas timeout/mute untuk ${user.tag}.` };
+      return { ok: true, message: `Successfully removed timeout/mute for ${user.tag}.` };
     },
   },
 
@@ -409,7 +409,7 @@ const tools = {
       type: 'function',
       function: {
         name: 'kick_user',
-        description: 'Kick a user from the server (e.g. "tolong kick @user [alasan]").',
+        description: 'Kick a user from the server (e.g. "kick @user [reason]").',
         parameters: {
           type: 'object',
           properties: {
@@ -423,12 +423,12 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.KickMembers)) {
-        return { ok: false, message: "Bot tidak memiliki izin Kick Members di server ini." };
+        return { ok: false, message: "I am missing the Kick Members permission in this server." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
       if (error) return { ok: false, message: error };
-      if (!member) return { ok: false, message: `${user.tag} bukan anggota server ini saat ini.` };
+      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
 
       const hierarchyError = checkHierarchy(interaction, member, botMember, 'kick');
       if (hierarchyError) return { ok: false, message: hierarchyError };
@@ -450,7 +450,7 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Berhasil mengeluarkan ${user.tag} dari server.` };
+      return { ok: true, message: `Successfully kicked ${user.tag} from the server.` };
     },
   },
 
@@ -460,7 +460,7 @@ const tools = {
       type: 'function',
       function: {
         name: 'ban_user',
-        description: 'Ban a user from the server (e.g. "tolong ban @user [alasan]").',
+        description: 'Ban a user from the server (e.g. "ban @user [reason]").',
         parameters: {
           type: 'object',
           properties: {
@@ -475,7 +475,7 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-        return { ok: false, message: "Bot tidak memiliki izin Ban Members di server ini." };
+        return { ok: false, message: "I am missing the Ban Members permission in this server." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
@@ -505,7 +505,7 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Berhasil mem-ban ${user.tag} dari server.` };
+      return { ok: true, message: `Successfully banned ${user.tag} from the server.` };
     },
   },
 
@@ -529,7 +529,7 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-        return { ok: false, message: "Bot tidak memiliki izin Ban Members di server ini." };
+        return { ok: false, message: "I am missing the Ban Members permission in this server." };
       }
 
       let targetId = extractUserId(args.userId);
@@ -548,7 +548,7 @@ const tools = {
       }
 
       if (!targetId) {
-        return { ok: false, message: 'Tidak dapat menemukan ID user yang di-ban. Mohon berikan user ID yang valid.' };
+        return { ok: false, message: 'Could not find a banned user with that ID or name. Please provide a valid user ID.' };
       }
 
       const reason = args.reason || 'Unbanned via Cutie AI';
@@ -570,9 +570,9 @@ const tools = {
         await sendLog(interaction.guild, embed);
         await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-        return { ok: true, message: `Berhasil meng-unban ${targetTag} (${targetId}) dari server.` };
+        return { ok: true, message: `Successfully unbanned ${targetTag} (${targetId}) from the server.` };
       } catch (err) {
-        return { ok: false, message: `Gagal meng-unban user: ${err.message || 'ID tidak ditemukan dalam daftar ban.'}` };
+        return { ok: false, message: `Failed to unban user: ${err.message || 'ID was not found in the server ban list.'}` };
       }
     },
   },
@@ -999,9 +999,9 @@ const tools = {
     async handler(interaction, args) {
       try {
         const result = math.evaluate(args.expression);
-        return { ok: true, message: `Hasil dari ${args.expression} = ${result}` };
+        return { ok: true, message: `Result of ${args.expression} = ${result}` };
       } catch (err) {
-        return { ok: false, message: `Gagal menghitung ekspresi: ${err.message}` };
+        return { ok: false, message: `Failed to evaluate expression: ${err.message}` };
       }
     },
   },
@@ -1012,15 +1012,15 @@ const tools = {
       type: 'function',
       function: {
         name: 'set_reminder',
-        description: "Set a countdown timer or reminder for the user. Call this tool whenever the user asks to be reminded of something, set a timer, or count down time (e.g. 'tolong ingatkan aku dalam 1 menit ya', 'set timer 15 detik', 'ingetin 10 menit lagi', 'remind me in 1 hour').",
+        description: "Set a countdown timer or reminder for the user. Call this tool whenever the user asks to be reminded of something, set a timer, or count down time (e.g. 'remind me in 1 hour', 'set timer 15s', 'remind me in 10 minutes').",
         parameters: {
           type: 'object',
           properties: {
-            duration: { type: 'string', description: 'Duration or time, e.g. "15s", "15 detik", "1m", "5 menit", "1h", "2 jam"' },
+            duration: { type: 'string', description: 'Duration or time, e.g. "15s", "10s", "1m", "5m", "1h"' },
             seconds: { type: 'integer', description: 'Number of seconds directly (e.g. 15)' },
             minutes: { type: 'number', description: 'Number of minutes directly (e.g. 1)' },
             time: { type: 'string', description: 'Alias for duration' },
-            message: { type: 'string', description: 'What to remind the user about (e.g. "minum coklat", "minum obat"). Defaults to "Waktunya selesai!" if not provided.' },
+            message: { type: 'string', description: 'What to remind the user about (e.g. "hot chocolate", "take vitamins"). Defaults to "Time is up!" if not provided.' },
           },
         },
       },
@@ -1037,24 +1037,24 @@ const tools = {
       }
 
       if (!ms || ms <= 0) {
-        return { ok: false, message: 'Format waktu tidak valid. Gunakan format seperti 15 detik, 10s, 1m, 5 menit, 1 jam.' };
+        return { ok: false, message: 'Invalid duration format. Use formats like 15s, 10s, 1m, 5m, 1h.' };
       }
       if (ms > 24 * 60 * 60 * 1000 * 30) {
-        return { ok: false, message: 'Durasi maksimal pengingat adalah 30 hari.' };
+        return { ok: false, message: 'Maximum reminder duration is 30 days.' };
       }
 
       const user = interaction.user;
       const client = interaction.client;
       const channelId = interaction.channelId || interaction.channel?.id;
       let initialChannel = interaction.channel;
-      const reminderMsg = args.message && args.message.trim() ? args.message.trim() : 'Waktunya selesai!';
-      const timeStr = formatDuration(ms, 'id');
+      const reminderMsg = args.message && args.message.trim() ? args.message.trim() : 'Time is up!';
+      const timeStr = formatDuration(ms, 'en');
 
       console.log(`[Timer] Scheduling reminder for user ${user?.id} in ${ms}ms (${timeStr}): "${reminderMsg}" in channel ${channelId}`);
 
       setTimeout(async () => {
         console.log(`[Timer] Firing reminder for user ${user?.id}: "${reminderMsg}"`);
-        const alertContent = `⏰ <@${user.id}> **Ting-ting! Pengingat dari Cutie untuk Master (${timeStr})** 💕\n> "${reminderMsg}"\n*(◕‿◕)♡ Jangan lupa ya, Master!*`;
+        const alertContent = `⏰ <@${user.id}> **Ding-dong! Reminder from Cutie for Master (${timeStr})** 💕\n> "${reminderMsg}"\n*(◕‿◕)♡ Don't forget, Master!*`;
         let sent = false;
 
         // 1. Try sending to the channel where it was requested
@@ -1104,15 +1104,15 @@ const tools = {
       type: 'function',
       function: {
         name: 'set_timer',
-        description: "Set a countdown timer or reminder. Call this tool whenever the user asks to set a timer, countdown, or be reminded (e.g. 'set timer 1 menit', 'tolong pasang timer 15 detik', 'set timer 10s').",
+        description: "Set a countdown timer or reminder. Call this tool whenever the user asks to set a timer, countdown, or be reminded (e.g. 'set timer 15s', 'set timer 1 minute', 'countdown 10s').",
         parameters: {
           type: 'object',
           properties: {
-            duration: { type: 'string', description: 'Duration or time, e.g. "15s", "15 detik", "1m", "5 menit", "1h", "2 jam"' },
+            duration: { type: 'string', description: 'Duration or time, e.g. "15s", "10s", "1m", "5m", "1h"' },
             seconds: { type: 'integer', description: 'Number of seconds directly (e.g. 15)' },
             minutes: { type: 'number', description: 'Number of minutes directly (e.g. 1)' },
             time: { type: 'string', description: 'Alias for duration' },
-            message: { type: 'string', description: 'Note for the timer. Defaults to "Waktunya selesai!" if not provided.' },
+            message: { type: 'string', description: 'Note for the timer. Defaults to "Time is up!" if not provided.' },
           },
         },
       },
@@ -1148,7 +1148,7 @@ const tools = {
         opts = opts.split(/,| atau | or /i).map(s => s.trim()).filter(Boolean);
       }
       if (!Array.isArray(opts) || opts.length < 2) {
-        return { ok: false, message: 'Berikan minimal 2 opsi untuk dipilih!' };
+        return { ok: false, message: 'Please provide at least 2 options to choose from!' };
       }
       const chosen = opts[Math.floor(Math.random() * opts.length)];
       return { ok: true, chosen, allOptions: opts, message: `From the choices (${opts.join(', ')}), my pick is: ${chosen}.` };
@@ -1218,14 +1218,14 @@ const tools = {
     async handler(interaction, args) {
       const channel = interaction.channel;
       if (!channel || !channel.send) {
-        return { ok: false, message: 'Tidak dapat membuat polling di channel ini.' };
+        return { ok: false, message: 'Cannot create a poll in this channel.' };
       }
       let opts = args.options;
       if (typeof opts === 'string') {
         opts = opts.split(',').map(s => s.trim()).filter(Boolean);
       }
       if (!Array.isArray(opts) || opts.length < 2) {
-        return { ok: false, message: 'Polling membutuhkan minimal 2 opsi.' };
+        return { ok: false, message: 'Poll requires at least 2 options.' };
       }
       if (opts.length > 10) {
         opts = opts.slice(0, 10);
@@ -1244,9 +1244,9 @@ const tools = {
         for (let i = 0; i < opts.length; i++) {
           await pollMsg.react(numberEmojis[i]).catch(() => {});
         }
-        return { ok: true, message: `Polling "${args.question}" dengan ${opts.length} opsi berhasil dibuat di channel!` };
+        return { ok: true, message: `Poll "${args.question}" with ${opts.length} options successfully created in channel!` };
       } catch (err) {
-        return { ok: false, message: `Gagal mengirim polling: ${err.message}` };
+        return { ok: false, message: `Failed to send poll: ${err.message}` };
       }
     },
   },
@@ -1277,7 +1277,7 @@ const tools = {
     },
     async handler(interaction, args) {
       const userId = interaction.user?.id;
-      if (!userId) return { ok: false, message: 'User tidak teridentifikasi.' };
+      if (!userId) return { ok: false, message: 'User not identified.' };
 
       if (!state.userTodos.has(userId)) {
         state.userTodos.set(userId, []);
@@ -1288,31 +1288,31 @@ const tools = {
 
       if (action === 'add') {
         if (!args.item || !args.item.trim()) {
-          return { ok: false, message: 'Sebutkan tugas/catatan yang ingin ditambahkan!' };
+          return { ok: false, message: 'Please specify the task/note to add!' };
         }
         todos.push(args.item.trim());
         return {
           ok: true,
-          message: `Berhasil menambahkan ke to-do list: "${args.item.trim()}". Sekarang kamu punya ${todos.length} tugas.`,
+          message: `Successfully added to to-do list: "${args.item.trim()}". You now have ${todos.length} task(s).`,
           todos,
         };
       }
 
       if (action === 'list') {
         if (todos.length === 0) {
-          return { ok: true, message: 'To-do list kamu saat ini masih kosong.', todos: [] };
+          return { ok: true, message: 'Your to-do list is currently empty.', todos: [] };
         }
         const formatted = todos.map((t, idx) => `${idx + 1}. ${t}`).join('\n');
         return {
           ok: true,
-          message: `Daftar to-do kamu (${todos.length}):\n${formatted}`,
+          message: `Your to-do list (${todos.length}):\n${formatted}`,
           todos,
         };
       }
 
       if (action === 'remove') {
         if (todos.length === 0) {
-          return { ok: false, message: 'To-do list kamu sudah kosong.' };
+          return { ok: false, message: 'Your to-do list is already empty.' };
         }
         const idx = parseInt(args.item, 10);
         let removed;
@@ -1325,17 +1325,17 @@ const tools = {
           }
         }
         if (!removed) {
-          return { ok: false, message: `Tidak menemukan tugas yang cocok dengan "${args.item}".` };
+          return { ok: false, message: `Could not find a task matching "${args.item}".` };
         }
-        return { ok: true, message: `Berhasil menghapus tugas: "${removed}". Sisa ${todos.length} tugas.` };
+        return { ok: true, message: `Successfully removed task: "${removed}". ${todos.length} task(s) remaining.` };
       }
 
       if (action === 'clear') {
         state.userTodos.set(userId, []);
-        return { ok: true, message: 'Semua to-do list kamu telah dibersihkan.' };
+        return { ok: true, message: 'All items in your to-do list have been cleared.' };
       }
 
-      return { ok: false, message: `Aksi tidak dikenal: ${action}` };
+      return { ok: false, message: `Unknown action: ${action}` };
     },
   },
 
@@ -1358,19 +1358,19 @@ const tools = {
     async handler(interaction, args) {
       const channel = interaction.channel;
       if (!channel || !channel.bulkDelete) {
-        return { ok: false, message: 'Pesan tidak dapat dihapus di channel ini.' };
+        return { ok: false, message: 'Messages cannot be deleted in this channel.' };
       }
       const botMember = interaction.guild?.members.me;
       if (!botMember?.permissions.has(PermissionFlagsBits.ManageMessages)) {
-        return { ok: false, message: 'Aku tidak memiliki izin ManageMessages di server ini.' };
+        return { ok: false, message: "I'm missing the Manage Messages permission in this server." };
       }
 
       const amount = Math.max(1, Math.min(parseInt(args.amount, 10) || 1, 100));
       try {
         const deleted = await channel.bulkDelete(amount, true);
-        return { ok: true, message: `Berhasil menghapus ${deleted.size} pesan terakhir.` };
+        return { ok: true, message: `Successfully deleted the last ${deleted.size} message(s).` };
       } catch (err) {
-        return { ok: false, message: `Gagal menghapus pesan: ${err.message}` };
+        return { ok: false, message: `Failed to delete messages: ${err.message}` };
       }
     },
   },
@@ -1394,11 +1394,11 @@ const tools = {
     async handler(interaction, args) {
       const channel = interaction.channel;
       if (!channel || !channel.setRateLimitPerUser) {
-        return { ok: false, message: 'Slowmode tidak dapat diatur di channel ini.' };
+        return { ok: false, message: 'Slowmode cannot be configured in this channel.' };
       }
       const botMember = interaction.guild?.members.me;
       if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        return { ok: false, message: 'Aku tidak memiliki izin ManageChannels di server ini.' };
+        return { ok: false, message: "I'm missing the Manage Channels permission in this server." };
       }
 
       const raw = String(args.duration).trim().toLowerCase();
@@ -1411,7 +1411,7 @@ const tools = {
       }
 
       if (seconds < 0 || seconds > 21600) {
-        return { ok: false, message: 'Durasi slowmode harus antara 0 dan 21600 detik (maksimal 6 jam).' };
+        return { ok: false, message: 'Slowmode duration must be between 0 and 21600 seconds (maximum 6 hours).' };
       }
 
       try {
@@ -1419,11 +1419,11 @@ const tools = {
         return {
           ok: true,
           message: seconds === 0
-            ? 'Slowmode berhasil dimatikan.'
-            : `Slowmode channel berhasil diatur ke ${seconds} detik per user.`,
+            ? 'Slowmode has been disabled.'
+            : `Channel slowmode has been set to ${seconds} seconds per user.`,
         };
       } catch (err) {
-        return { ok: false, message: `Gagal mengatur slowmode: ${err.message}` };
+        return { ok: false, message: `Failed to set slowmode: ${err.message}` };
       }
     },
   },
@@ -1447,10 +1447,10 @@ const tools = {
     async handler(interaction, args) {
       try {
         const res = await fetch(`https://api.urbandictionary.com/v0/define?term=${encodeURIComponent(args.term)}`);
-        if (!res.ok) return { ok: false, message: 'Layanan Urban Dictionary sedang tidak dapat diakses.' };
+        if (!res.ok) return { ok: false, message: 'Urban Dictionary service is currently unavailable.' };
         const data = await res.json();
         if (!data.list || data.list.length === 0) {
-          return { ok: false, message: `Tidak ditemukan definisi untuk istilah "${args.term}".` };
+          return { ok: false, message: `No definition found for term "${args.term}".` };
         }
         const top = data.list[0];
         return {
@@ -1461,7 +1461,7 @@ const tools = {
           thumbsUp: top.thumbs_up,
         };
       } catch (err) {
-        return { ok: false, message: `Gagal mengambil data: ${err.message}` };
+        return { ok: false, message: `Failed to fetch definition: ${err.message}` };
       }
     },
   },
@@ -1484,13 +1484,13 @@ const tools = {
     },
     async handler(interaction, args) {
       if (!args.text || !args.text.trim()) {
-        return { ok: false, message: 'Masukkan teks atau URL untuk dibuatkan QR code.' };
+        return { ok: false, message: 'Please provide text or a URL to generate a QR code.' };
       }
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(args.text.trim())}`;
       return {
         ok: true,
         qrUrl,
-        message: `QR code berhasil dibuat untuk: ${args.text.trim()}`,
+        message: `QR code successfully generated for: ${args.text.trim()}`,
       };
     },
   },
@@ -1563,7 +1563,7 @@ const tools = {
     },
     async handler(interaction, args) {
       if (!interaction.guild) {
-        return { ok: false, message: 'Perintah ini hanya dapat digunakan di dalam server.' };
+        return { ok: false, message: 'This command can only be used inside a server.' };
       }
       const action = (args.action || 'set').toLowerCase();
       if (action === 'remove' || action === 'disable') {
@@ -1571,8 +1571,8 @@ const tools = {
         return {
           ok: success,
           message: success
-            ? 'Channel khusus AI berhasil dimatikan. Bot sekarang hanya akan merespon jika dimention.'
-            : 'Gagal memperbarui pengaturan database.',
+            ? 'Dedicated AI auto-reply channel has been removed. The bot will now only respond when mentioned.'
+            : 'Failed to update guild settings in database.',
         };
       }
 
@@ -1583,15 +1583,15 @@ const tools = {
       }
 
       if (!targetChannelId) {
-        return { ok: false, message: 'Tidak dapat mendeteksi ID channel target.' };
+        return { ok: false, message: 'Could not detect target channel ID.' };
       }
 
       const success = await updateGuildSettings(interaction.guild.id, { ask_channel_id: targetChannelId });
       return {
         ok: success,
         message: success
-          ? `Channel auto-reply AI berhasil diatur ke <#${targetChannelId}>!`
-          : 'Gagal menyimpan pengaturan ke database.',
+          ? `AI auto-reply channel has been successfully set to <#${targetChannelId}>!`
+          : 'Failed to save settings to database.',
       };
     },
   },
@@ -1611,13 +1611,13 @@ async function runTool(interaction, name, args) {
 
   if (tool.permission) {
     if (!interaction.guild) {
-      return { ok: false, message: 'Aksi ini hanya dapat dijalankan di dalam server, bukan di Direct Messages (DM).' };
+      return { ok: false, message: 'This action can only be executed in a server, not in Direct Messages (DM).' };
     }
     if (!hasPermission(interaction, tool.permission)) {
       const permName = PERMISSION_NAMES[tool.permission] || 'Moderator';
       return {
         ok: false,
-        message: `Akses ditolak: Master tidak memiliki izin '${permName}' di server ini untuk menjalankan aksi tersebut.`,
+        message: `Access denied: You do not have the '${permName}' permission in this server to perform this action.`,
       };
     }
   }
@@ -1626,7 +1626,7 @@ async function runTool(interaction, name, args) {
     return await tool.handler(interaction, args || {});
   } catch (err) {
     console.error(`Error running AI tool "${name}":`, err);
-    return { ok: false, message: 'Terjadi kesalahan saat menjalankan aksi tersebut: ' + (err.message || 'Error tidak diketahui') };
+    return { ok: false, message: 'An error occurred while executing this action: ' + (err.message || 'Unknown error') };
   }
 }
 
