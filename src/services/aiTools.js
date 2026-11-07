@@ -1,10 +1,41 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { addWarning, getWarnings, clearWarnings, logModAction, getModStats } = require('./moderation');
 const { sendLog } = require('./logChannel');
 const { parseDuration, formatDuration } = require('../utils/duration');
 const { updateGuildSettings } = require('./guildSettings');
 const math = require('mathjs');
 const state = require('../state');
+
+const PERMISSION_NAMES = {
+  [PermissionFlagsBits.KickMembers]: 'Kick Members',
+  [PermissionFlagsBits.BanMembers]: 'Ban Members',
+  [PermissionFlagsBits.ModerateMembers]: 'Moderate Members (Mute/Timeout/Warn)',
+  [PermissionFlagsBits.ManageMessages]: 'Manage Messages',
+  [PermissionFlagsBits.ManageChannels]: 'Manage Channels',
+  [PermissionFlagsBits.ManageNicknames]: 'Manage Nicknames',
+  [PermissionFlagsBits.Administrator]: 'Administrator',
+};
+
+function getMemberPermissions(interaction) {
+  if (interaction.memberPermissions) {
+    return interaction.memberPermissions;
+  }
+  const rawPerms = interaction.member?.permissions;
+  if (rawPerms) {
+    if (typeof rawPerms.has === 'function') return rawPerms;
+    try {
+      return new PermissionsBitField(BigInt(rawPerms));
+    } catch (_) {}
+  }
+  return null;
+}
+
+function hasPermission(interaction, permission) {
+  if (!interaction.guild) return false;
+  if (interaction.user && interaction.guild.ownerId === interaction.user.id) return true;
+  const perms = getMemberPermissions(interaction);
+  return perms ? perms.has(permission) : false;
+}
 
 // Pull a Discord snowflake out of a raw string or a <@id> / <@!id> mention.
 function extractUserId(raw) {
@@ -14,6 +45,7 @@ function extractUserId(raw) {
 }
 
 async function resolveTarget(interaction, userIdRaw) {
+  if (!userIdRaw) return { error: 'Target pengguna belum ditentukan. Silakan sebutkan @mention atau ID pengguna.' };
   const userId = extractUserId(userIdRaw);
   if (userId) {
     const user = await interaction.client.users.fetch(userId).catch(() => null);
@@ -21,33 +53,75 @@ async function resolveTarget(interaction, userIdRaw) {
     if (user) return { user, member };
   }
 
-  // Fallback: If not a snowflake, search guild members by username or nickname
+  // Fallback: search guild members by username, nickname, or tag
   if (interaction.guild && typeof userIdRaw === 'string') {
     const query = userIdRaw.replace(/^@/, '').toLowerCase().trim();
     if (query) {
-      const match = interaction.guild.members.cache.find((m) =>
-        m.user.username.toLowerCase() === query ||
-        m.displayName.toLowerCase() === query ||
-        m.user.tag.toLowerCase() === query
-      );
+      let match = null;
+      if (typeof interaction.guild.members.cache?.find === 'function') {
+        match = interaction.guild.members.cache.find((m) =>
+          m.user?.username?.toLowerCase() === query ||
+          m.displayName?.toLowerCase() === query ||
+          m.user?.tag?.toLowerCase() === query
+        );
+      }
+      if (!match && typeof interaction.guild.members.search === 'function') {
+        try {
+          const searched = await interaction.guild.members.search({ query, limit: 1 });
+          match = searched?.first ? searched.first() : null;
+        } catch (_) {}
+      }
       if (match) {
         return { user: match.user, member: match };
       }
     }
   }
 
-  return { error: 'No valid user ID, mention, or member was found. Ask the user to @mention who they mean.' };
+  return { error: 'Pengguna tidak ditemukan. Silakan gunakan @mention atau user ID yang valid.' };
 }
 
-// Same hierarchy rules used by /ban, /kick, /timeout.
-function checkHierarchy(interaction, member, botMember) {
+// Role hierarchy & self/owner protection rules.
+function checkHierarchy(interaction, member, botMember, action = null) {
   if (!member) return null;
-  if (member.roles.highest.position >= botMember.roles.highest.position) {
-    return "I can't do that to this user — their highest role is equal to or above mine.";
+  const guild = interaction.guild;
+  if (!guild) return null;
+
+  // 1. Cannot moderate the server owner
+  if (member.id === guild.ownerId) {
+    return "Tidak dapat melakukan tindakan moderasi terhadap Owner server.";
   }
-  if (member.roles.highest.position >= interaction.member.roles.highest.position) {
-    return "You can't do that to this user — their highest role is equal to or above yours.";
+
+  // 2. Cannot moderate the bot itself
+  if (member.id === botMember?.id || member.id === interaction.client?.user?.id) {
+    return "Aku tidak bisa melakukan tindakan moderasi terhadap diriku sendiri!";
   }
+
+  // 3. User cannot moderate themselves
+  if (member.id === interaction.user.id) {
+    return "Master tidak bisa melakukan tindakan moderasi terhadap diri sendiri!";
+  }
+
+  // 4. Bot permission & role hierarchy check
+  if (action === 'kick' && !member.kickable) {
+    return "Aku tidak bisa me-kick user ini karena role mereka sejajar atau lebih tinggi dari role tertinggiku.";
+  }
+  if (action === 'ban' && !member.bannable) {
+    return "Aku tidak bisa mem-ban user ini karena role mereka sejajar atau lebih tinggi dari role tertinggiku.";
+  }
+  if ((action === 'timeout' || action === 'mute') && !member.moderatable) {
+    return "Aku tidak bisa me-mute/timeout user ini karena role mereka sejajar atau lebih tinggi dari role tertinggiku.";
+  }
+  if (botMember && member.roles.highest.position >= botMember.roles.highest.position) {
+    return "Aku tidak bisa melakukan itu — role tertinggi mereka sejajar atau di atas role tertinggiku.";
+  }
+
+  // 5. Invoking user role hierarchy check (guild owner is exempt)
+  if (interaction.user.id !== guild.ownerId && interaction.member) {
+    if (member.roles.highest.position >= interaction.member.roles.highest.position) {
+      return "Master tidak bisa melakukan tindakan ini — role tertinggi target sejajar atau lebih tinggi dari role Master.";
+    }
+  }
+
   return null;
 }
 
@@ -180,37 +254,38 @@ const tools = {
       type: 'function',
       function: {
         name: 'timeout_user',
-        description: 'Timeout (temporarily mute) a user. Maximum duration is 28 days.',
+        description: 'Timeout (temporarily mute) a user in the server (e.g. "timeout @user 10m", "mute @user 1 jam"). Maximum duration is 28 days.',
         parameters: {
           type: 'object',
           properties: {
             userId: { type: 'string', description: 'Discord user ID or mention' },
-            duration: { type: 'string', description: 'Duration like 10m, 1h, 1d' },
-            reason: { type: 'string', description: 'Reason for the timeout' },
+            duration: { type: 'string', description: 'Duration like 10m, 10 menit, 1h, 1d (defaults to 10m if omitted)' },
+            reason: { type: 'string', description: 'Reason for the timeout/mute' },
           },
-          required: ['userId', 'duration'],
+          required: ['userId'],
         },
       },
     },
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return { ok: false, message: "I'm missing the Moderate Members permission in this server." };
+        return { ok: false, message: "Bot tidak memiliki izin Moderate Members di server ini." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
       if (error) return { ok: false, message: error };
-      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
+      if (!member) return { ok: false, message: `${user.tag} bukan anggota server ini saat ini.` };
 
-      const ms = parseDuration(args.duration);
-      if (!ms || ms > 2419200000) {
-        return { ok: false, message: 'Invalid duration. Use formats like 10m, 1h, 1d — maximum is 28 days.' };
-      }
-
-      const hierarchyError = checkHierarchy(interaction, member, botMember);
+      const hierarchyError = checkHierarchy(interaction, member, botMember, 'timeout');
       if (hierarchyError) return { ok: false, message: hierarchyError };
 
-      const reason = args.reason || 'No reason provided';
+      const rawDuration = args.duration || args.time || '10m';
+      const ms = parseDuration(rawDuration);
+      if (!ms || ms > 2419200000) {
+        return { ok: false, message: 'Durasi timeout tidak valid. Gunakan format seperti 10 menit, 1h, 1d (maksimal 28 hari).' };
+      }
+
+      const reason = args.reason || 'Timed out via Cutie AI';
       await member.timeout(ms, reason);
       await logModAction(interaction.guild.id, 'timeout', interaction.user.id, user.id, reason);
 
@@ -219,7 +294,7 @@ const tools = {
         .setTitle('User Timed Out (via Cutie AI)')
         .addFields(
           { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
-          { name: 'Duration', value: args.duration, inline: true },
+          { name: 'Duration', value: formatDuration(ms, 'id'), inline: true },
           { name: 'Moderator', value: interaction.user.tag, inline: true },
           { name: 'Reason', value: reason, inline: false }
         )
@@ -228,7 +303,103 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Timed out ${user.tag} for ${args.duration}.` };
+      return { ok: true, message: `Berhasil me-mute/timeout ${user.tag} selama ${formatDuration(ms, 'id')}.` };
+    },
+  },
+
+  mute_user: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'mute_user',
+        description: 'Mute / timeout a user in the server (e.g. "tolong mute @user 10 menit", "mute @user 1h"). Alias for timeout_user.',
+        parameters: {
+          type: 'object',
+          properties: {
+            userId: { type: 'string', description: 'Discord user ID or mention' },
+            duration: { type: 'string', description: 'Duration like 10m, 10 menit, 1h, 1d (defaults to 10m if omitted)' },
+            reason: { type: 'string', description: 'Reason for the mute' },
+          },
+          required: ['userId'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      return await tools.timeout_user.handler(interaction, args);
+    },
+  },
+
+  untimeout_user: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'untimeout_user',
+        description: 'Remove timeout / unmute a user in the server (e.g. "tolong unmute @user", "lepas timeout @user").',
+        parameters: {
+          type: 'object',
+          properties: {
+            userId: { type: 'string', description: 'Discord user ID or mention' },
+            reason: { type: 'string', description: 'Reason for removing timeout / unmute' },
+          },
+          required: ['userId'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild.members.me;
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        return { ok: false, message: "Bot tidak memiliki izin Moderate Members di server ini." };
+      }
+
+      const { user, member, error } = await resolveTarget(interaction, args.userId);
+      if (error) return { ok: false, message: error };
+      if (!member) return { ok: false, message: `${user.tag} bukan anggota server ini saat ini.` };
+
+      const hierarchyError = checkHierarchy(interaction, member, botMember, 'untimeout');
+      if (hierarchyError) return { ok: false, message: hierarchyError };
+
+      const reason = args.reason || 'Timeout removed via Cutie AI';
+      await member.timeout(null, reason);
+      await logModAction(interaction.guild.id, 'untimeout', interaction.user.id, user.id, reason);
+
+      const embed = new EmbedBuilder()
+        .setColor('#3498DB')
+        .setTitle('Timeout Removed (via Cutie AI)')
+        .addFields(
+          { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
+          { name: 'Moderator', value: interaction.user.tag, inline: true },
+          { name: 'Reason', value: reason, inline: false }
+        )
+        .setTimestamp();
+
+      await sendLog(interaction.guild, embed);
+      await interaction.followUp({ embeds: [embed] }).catch(() => {});
+
+      return { ok: true, message: `Berhasil melepas timeout/mute untuk ${user.tag}.` };
+    },
+  },
+
+  unmute_user: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'unmute_user',
+        description: 'Unmute a user in the server (alias for untimeout_user).',
+        parameters: {
+          type: 'object',
+          properties: {
+            userId: { type: 'string', description: 'Discord user ID or mention' },
+            reason: { type: 'string', description: 'Reason for unmute' },
+          },
+          required: ['userId'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      return await tools.untimeout_user.handler(interaction, args);
     },
   },
 
@@ -238,7 +409,7 @@ const tools = {
       type: 'function',
       function: {
         name: 'kick_user',
-        description: 'Kick a user from the server.',
+        description: 'Kick a user from the server (e.g. "tolong kick @user [alasan]").',
         parameters: {
           type: 'object',
           properties: {
@@ -252,17 +423,17 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.KickMembers)) {
-        return { ok: false, message: "I'm missing the Kick Members permission in this server." };
+        return { ok: false, message: "Bot tidak memiliki izin Kick Members di server ini." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
       if (error) return { ok: false, message: error };
-      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
+      if (!member) return { ok: false, message: `${user.tag} bukan anggota server ini saat ini.` };
 
-      const hierarchyError = checkHierarchy(interaction, member, botMember);
+      const hierarchyError = checkHierarchy(interaction, member, botMember, 'kick');
       if (hierarchyError) return { ok: false, message: hierarchyError };
 
-      const reason = args.reason || 'No reason provided';
+      const reason = args.reason || 'Kicked via Cutie AI';
       await member.kick(reason);
       await logModAction(interaction.guild.id, 'kick', interaction.user.id, user.id, reason);
 
@@ -279,7 +450,7 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Kicked ${user.tag} from the server.` };
+      return { ok: true, message: `Berhasil mengeluarkan ${user.tag} dari server.` };
     },
   },
 
@@ -289,7 +460,7 @@ const tools = {
       type: 'function',
       function: {
         name: 'ban_user',
-        description: 'Ban a user from the server.',
+        description: 'Ban a user from the server (e.g. "tolong ban @user [alasan]").',
         parameters: {
           type: 'object',
           properties: {
@@ -304,16 +475,18 @@ const tools = {
     async handler(interaction, args) {
       const botMember = interaction.guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-        return { ok: false, message: "I'm missing the Ban Members permission in this server." };
+        return { ok: false, message: "Bot tidak memiliki izin Ban Members di server ini." };
       }
 
       const { user, member, error } = await resolveTarget(interaction, args.userId);
       if (error) return { ok: false, message: error };
 
-      const hierarchyError = checkHierarchy(interaction, member, botMember);
-      if (hierarchyError) return { ok: false, message: hierarchyError };
+      if (member) {
+        const hierarchyError = checkHierarchy(interaction, member, botMember, 'ban');
+        if (hierarchyError) return { ok: false, message: hierarchyError };
+      }
 
-      const reason = args.reason || 'No reason provided';
+      const reason = args.reason || 'Banned via Cutie AI';
       const deleteDays = Math.min(Math.max(parseInt(args.deleteMessageDays, 10) || 0, 0), 7);
 
       await interaction.guild.members.ban(user.id, { deleteMessageSeconds: deleteDays * 86400, reason });
@@ -332,7 +505,75 @@ const tools = {
       await sendLog(interaction.guild, embed);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
-      return { ok: true, message: `Banned ${user.tag} from the server.` };
+      return { ok: true, message: `Berhasil mem-ban ${user.tag} dari server.` };
+    },
+  },
+
+  unban_user: {
+    permission: PermissionFlagsBits.BanMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'unban_user',
+        description: 'Unban a user from the server by user ID or username.',
+        parameters: {
+          type: 'object',
+          properties: {
+            userId: { type: 'string', description: 'Discord user ID or mention or username of the banned user' },
+            reason: { type: 'string', description: 'Reason for the unban' },
+          },
+          required: ['userId'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild.members.me;
+      if (!botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return { ok: false, message: "Bot tidak memiliki izin Ban Members di server ini." };
+      }
+
+      let targetId = extractUserId(args.userId);
+      let targetTag = args.userId;
+
+      if (!targetId && interaction.guild) {
+        try {
+          const bans = await interaction.guild.bans.fetch();
+          const query = String(args.userId).replace(/^@/, '').toLowerCase().trim();
+          const match = bans.find(b => b.user.username.toLowerCase() === query || b.user.tag.toLowerCase() === query);
+          if (match) {
+            targetId = match.user.id;
+            targetTag = match.user.tag;
+          }
+        } catch (_) {}
+      }
+
+      if (!targetId) {
+        return { ok: false, message: 'Tidak dapat menemukan ID user yang di-ban. Mohon berikan user ID yang valid.' };
+      }
+
+      const reason = args.reason || 'Unbanned via Cutie AI';
+
+      try {
+        await interaction.guild.members.unban(targetId, reason);
+        await logModAction(interaction.guild.id, 'unban', interaction.user.id, targetId, reason);
+
+        const embed = new EmbedBuilder()
+          .setColor('#3498DB')
+          .setTitle('User Unbanned (via Cutie AI)')
+          .addFields(
+            { name: 'User', value: `${targetTag} (${targetId})`, inline: true },
+            { name: 'Moderator', value: interaction.user.tag, inline: true },
+            { name: 'Reason', value: reason, inline: false }
+          )
+          .setTimestamp();
+
+        await sendLog(interaction.guild, embed);
+        await interaction.followUp({ embeds: [embed] }).catch(() => {});
+
+        return { ok: true, message: `Berhasil meng-unban ${targetTag} (${targetId}) dari server.` };
+      } catch (err) {
+        return { ok: false, message: `Gagal meng-unban user: ${err.message || 'ID tidak ditemukan dalam daftar ban.'}` };
+      }
     },
   },
 
@@ -1357,9 +1598,7 @@ const tools = {
 };
 
 function getToolDefinitions(member) {
-  return Object.values(tools)
-    .filter((t) => !t.permission || (member && member.permissions && member.permissions.has(t.permission)))
-    .map((t) => t.definition);
+  return Object.values(tools).map((t) => t.definition);
 }
 
 // Every tool call is re-validated here against the *actual* invoking member's
@@ -1372,10 +1611,14 @@ async function runTool(interaction, name, args) {
 
   if (tool.permission) {
     if (!interaction.guild) {
-      return { ok: false, message: 'This action can only be used inside a server, not in DMs.' };
+      return { ok: false, message: 'Aksi ini hanya dapat dijalankan di dalam server, bukan di Direct Messages (DM).' };
     }
-    if (!interaction.member?.permissions?.has(tool.permission)) {
-      return { ok: false, message: "You don't have permission to do that in this server." };
+    if (!hasPermission(interaction, tool.permission)) {
+      const permName = PERMISSION_NAMES[tool.permission] || 'Moderator';
+      return {
+        ok: false,
+        message: `Akses ditolak: Master tidak memiliki izin '${permName}' di server ini untuk menjalankan aksi tersebut.`,
+      };
     }
   }
 
@@ -1383,7 +1626,7 @@ async function runTool(interaction, name, args) {
     return await tool.handler(interaction, args || {});
   } catch (err) {
     console.error(`Error running AI tool "${name}":`, err);
-    return { ok: false, message: 'Something went wrong while performing that action.' };
+    return { ok: false, message: 'Terjadi kesalahan saat menjalankan aksi tersebut: ' + (err.message || 'Error tidak diketahui') };
   }
 }
 

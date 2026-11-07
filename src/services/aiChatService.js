@@ -89,6 +89,14 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
   const toolsNote = tools.length > 0
     ? `\n\nAVAILABLE TOOLS & ACTIONS (${toolsListStr}):
 - When the user asks to be reminded, set a timer, or count down time (e.g. "tolong ingatkan aku dalam 1 menit ya", "set timer 15 detik", "set timer 5 menit", "ingetin 10 menit lagi", "remind me in 1 hour"), you MUST call the "set_timer" or "set_reminder" tool. Never just say you will remind them without calling the tool!
+- When asked to kick someone (e.g. "tolong kick @user [alasan]", "kick dia"), call the "kick_user" tool.
+- When asked to ban someone (e.g. "tolong ban @user [alasan]", "ban dia"), call the "ban_user" tool.
+- When asked to mute or timeout someone (e.g. "tolong mute @user 10 menit", "timeout @user"), call the "mute_user" or "timeout_user" tool.
+- When asked to unban someone (e.g. "tolong unban @user / ID"), call the "unban_user" tool.
+- When asked to unmute or remove timeout (e.g. "tolong unmute @user", "lepas timeout @user"), call the "unmute_user" or "untimeout_user" tool.
+- When asked to warn someone (e.g. "tolong warn @user [alasan]"), call the "warn_user" tool.
+- When asked to clear warnings, call the "clear_warnings" tool.
+- SECURITY & PERMISSION ENFORCEMENT: Never pretend to perform any moderation action without calling the tool! Discord server permissions and role hierarchy are strictly enforced by the bot. If a tool reports that permission is denied or hierarchy restricts the action (i.e. ok: false), you MUST convey that exact refusal politely and firmly in character to Master.
 - When the user asks for exact math calculation (e.g. "hitung 25 * 40"), call the "calculate" tool.
 - When the user asks to choose between options (e.g. "pilihin antara bakso atau sate", "choose between movie or gaming"), call "choose_option".
 - When asked to flip a coin ("lempar koin") or roll a dice ("roll dadu 1-20"), call "flip_coin" or "roll_dice".
