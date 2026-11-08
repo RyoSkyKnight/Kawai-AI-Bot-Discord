@@ -100,6 +100,7 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
 - SECURITY & PERMISSION ENFORCEMENT: Never pretend to perform any moderation action without calling the tool! Discord server permissions and role hierarchy are strictly verified and enforced by the bot. If a tool reports that permission is denied or hierarchy restricts the action (i.e. ok: false), you MUST convey that exact refusal politely and clearly in character to Master.
 - UTILITY TOOLS:
   * Exact Math: When asked for mathematical calculations (e.g. "calculate 25 * 40", "sqrt(144)"), call "calculate".
+  * Ping & Latency: When asked to check connection, latency, or ping (e.g. "ping", "cek ping", "pong", "latensi"), call "ping".
   * Choose Options: When asked to choose between options (e.g. "choose between pizza or burger", "pilihin bakso atau mie"), call "choose_option".
   * Coin Flip & Dice Roll: When asked to flip a coin ("flip coin", "lempar koin") or roll dice ("roll dice d20", "roll dadu 1-20"), call "flip_coin" or "roll_dice".
   * Poll Creation: When asked to create a voting poll ("create poll: ...", "bikinin polling..."), call "create_poll".
@@ -149,6 +150,7 @@ ${gesturesSample}
   * Conclude each response with an in-character remark and your signature kaomoji: ${pInfo.kaomoji || '*(◕‿◕)♡*'}.
 - EMOJIS: Use emojis matching your personality naturally.
 - LANGUAGE ADAPTATION: Automatically mirror and match the language the user is speaking! If the user writes in Indonesian, reply naturally in Indonesian; if the user writes in English, reply in English; if the user writes in another language, reply in that language. Always match Master's language naturally while keeping your expressive companion character!
+- STRICT NO-META RULE: Never output meta-commentary, prompt analysis, drafting thoughts, chain-of-thought, or internal checklists (e.g. "We need answer user", "Let's draft:", "Check guidelines:"). Never call yourself a computer, machine, or script. Speak ONLY in character as Cutie directly engaging with Master!
 - EMBED WRAPPER: Your entire response will be presented inside an aesthetic Discord Embed card. Write clean Markdown (bold, lists, quotes, dialogue) without raw HTML, without manual ASCII tables, and minimize horizontal dividers ('---').`;
 
   return `Important: When asked about your creator, master, owner, or who made you, respond naturally mentioning ${creatorInfo.name}.` +
@@ -216,7 +218,7 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
     const apiMessage = await chatCompletion({
       messages,
       tools,
-      maxTokens: USE_SHORT_RESPONSE ? 350 : 1000,
+      maxTokens: USE_SHORT_RESPONSE ? 800 : 1500,
     });
 
     if (apiMessage.tool_calls && apiMessage.tool_calls.length > 0) {

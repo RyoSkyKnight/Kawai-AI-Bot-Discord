@@ -235,6 +235,15 @@ function isCorruptedContent(content) {
     lower.includes("please try again later") ||
     lower.includes("terjadi kesalahan saat memproses") ||
     lower.includes("maafkan aku, sepertinya aku sedikit bingung") ||
+    lower.includes("we need answer user") ||
+    lower.includes("we need parse") ||
+    lower.includes("let's draft") ||
+    lower.includes("komputermata") ||
+    lower.includes("<think>") ||
+    lower.includes("</think>") ||
+    lower.includes("in-character remark and signature kaomoji") ||
+    lower.includes("check guidelines") ||
+    lower.includes("we are cutie maid assistant") ||
     ((lower.startsWith("[rekap") || lower.startsWith("[archive") || lower.startsWith("[summary")) && (lower.includes("i'm sorry") || lower.includes("maaf")));
 }
 

@@ -739,6 +739,26 @@ const tools = {
     },
   },
 
+  ping: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'ping',
+        description: 'Check bot connection latency and Discord WebSocket ping (e.g. "ping", "cek ping", "pong", "latensi bot").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      const pingMs = Math.round(interaction.client?.ws?.ping || 0);
+      return {
+        ok: true,
+        pingMs,
+        message: `Pong! Discord WebSocket ping latency is ${pingMs}ms.`,
+      };
+    },
+  },
+
   get_weather: {
     permission: null,
     definition: {
