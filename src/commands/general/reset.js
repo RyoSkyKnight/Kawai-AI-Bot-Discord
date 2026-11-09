@@ -7,3 +7,4 @@ module.exports = {
   },
   execute: clearHistoryCommand.execute,
 };
+

@@ -1,8 +1,9 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 module.exports = {
-  BOT_TOKEN: process.env.BOT_TOKEN,
-  CLIENT_ID: process.env.CLIENT_ID,
+  BOT_TOKEN: process.env.BOT_TOKEN || process.env.DISCORD_TOKEN || process.env.TOKEN,
+  CLIENT_ID: process.env.CLIENT_ID || process.env.APPLICATION_ID || process.env.APP_ID,
   API_KEY: process.env.API_KEY || process.env.OPENROUTER_API_KEY,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || process.env.API_KEY,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
