@@ -22,7 +22,7 @@ const CATEGORIES = {
       '• **🛡️ Robust Moderation**: Anti-spam auto-mute, bad words filter, kick/ban/timeout\n' +
       '• **🎮 Fun & Entertainment**: Trivia, polls, anime info, jokes, memes, and crypto prices',
     fields: [
-      { name: '🤖 AI & General', value: '`/ask` `/setpersonality` `/profile` `/ping` `/botinfo` `/uptime` `/clearhistory`', inline: true },
+      { name: '🤖 AI & General', value: '`/ask` `/setpersonality` `/profile` `/ping` `/botinfo` `/uptime` `/reset` `/clearhistory`', inline: true },
       { name: '🎮 Fun & Games', value: '`/roll` `/coinflip` `/8ball` `/joke` `/fact` `/trivia` `/meme` `/quote` `/choose`', inline: true },
       { name: '🛠️ Utilities', value: '`/translate` `/calculate` `/weather` `/wiki` `/urban` `/define` `/qr` `/shorten`', inline: true },
       { name: '🎬 Media', value: '`/anime` `/movie` `/crypto` `/gif` `/cat` `/dog`', inline: true },
@@ -42,7 +42,7 @@ const CATEGORIES = {
     fields: [
       { name: '`/ask [question] [image]`', value: 'Ask any question or attach an image for Cutie AI vision analysis.', inline: false },
       { name: '`/setpersonality [style]`', value: 'Switch AI personality (Sweet, Tsundere, Cool, Sarcastic, Assistant).', inline: false },
-      { name: '`/clearhistory`', value: 'Clear your conversation memory for a fresh new chat context.', inline: false },
+      { name: '`/reset` & `/clearhistory`', value: 'Reset / clear your AI conversation memory with Cutie for a fresh new context.', inline: false },
       { name: '`/profile [user]`', value: 'View detailed Discord user profile and server membership.', inline: false },
       { name: '`/avatar [user]`', value: 'View and get the direct link for full-size user avatars.', inline: false },
       { name: '`/ping`', value: 'Check bot latency and Discord WebSocket connection speed.', inline: false },
