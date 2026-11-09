@@ -28,7 +28,7 @@ const CATEGORIES = {
       { name: '🎬 Media', value: '`/anime` `/movie` `/crypto` `/gif` `/cat` `/dog`', inline: true },
       { name: '💬 Social', value: '`/poll` `/remind` `/afk` `/embed`', inline: true },
       { name: '🛡️ Moderation', value: '`/announce` `/ban` `/kick` `/timeout` `/warn` `/clear` `/lock` `/slowmode` `/modstats`', inline: true },
-      { name: '⚙️ Server Setup', value: '`/setwelcome` `/setgoodbye` `/autorole` `/setlog` `/setaskchannel` `/setautomute`', inline: true },
+      { name: '⚙️ Server Setup', value: '`/serverconfig` `/setwelcome` `/setgoodbye` `/autorole` `/setlog` `/setaskchannel` `/setautomute`', inline: true },
       { name: '🎭 Roles', value: '`/addrole` `/removerole` `/createrole` `/deleterole` `/roles`', inline: true },
     ],
   },
@@ -40,7 +40,7 @@ const CATEGORIES = {
     title: '🤖 Category: AI & General',
     descriptionText: 'Smart conversational companion powered by AI along with general bot commands:',
     fields: [
-      { name: '`/ask [question]`', value: 'Ask any question to the AI with modern embed cards.', inline: false },
+      { name: '`/ask [question] [image]`', value: 'Ask any question or attach an image for Cutie AI vision analysis.', inline: false },
       { name: '`/setpersonality [style]`', value: 'Switch AI personality (Sweet, Tsundere, Cool, Sarcastic, Assistant).', inline: false },
       { name: '`/clearhistory`', value: 'Clear your conversation memory for a fresh new chat context.', inline: false },
       { name: '`/profile [user]`', value: 'View detailed Discord user profile and server membership.', inline: false },
@@ -151,6 +151,7 @@ const CATEGORIES = {
     title: '⚙️ Category: Server Setup & Automation',
     descriptionText: 'System automation and administrative configurations for server quality of life:',
     fields: [
+      { name: '`/serverconfig`', value: 'View full dashboard of server automations, log channels, filters, and AI settings.', inline: false },
       { name: '`/setwelcome` & `/removewelcome`', value: 'Configure automatic welcome messages and channel for new members.', inline: false },
       { name: '`/setgoodbye` & `/removegoodbye`', value: 'Configure goodbye messages when a member leaves the server.', inline: false },
       { name: '`/autorole` & `/removeautorole`', value: 'Automatically assign a default role to new members upon joining.', inline: false },

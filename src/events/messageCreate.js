@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const state = require('../state');
 const { getGuildSettings } = require('../services/guildSettings');
 const { getAutoMuteSettings } = require('../services/autoMute');
@@ -8,6 +8,8 @@ const { sendLog } = require('../services/logChannel');
 const { parseDuration, formatDuration } = require('../utils/duration');
 const { processAiChat, getEffectivePersonality } = require('../services/aiChatService');
 const { sendModernAiResponse, createThinkingEmbed } = require('../utils/aiResponseHelper');
+
+const DISCORD_INVITE_REGEX = /(https?:\/\/)?(www\.)?(discord\.(gg|io|me|li)|discordapp\.com\/invite|discord\.com\/invite)\/[a-zA-Z0-9]+/i;
 
 // Periodic cleanup of stale spam tracking records (every 2 minutes)
 setInterval(() => {
@@ -78,9 +80,19 @@ module.exports = {
           prompt = prompt.replace(new RegExp(botMentionEscaped, 'g'), '').trim();
         }
 
-        if (!prompt) {
+        const imageAttachment = message.attachments.find(a =>
+          (a.contentType && a.contentType.startsWith('image/')) ||
+          /\.(png|jpe?g|gif|webp)$/i.test(a.name || '')
+        );
+        const imageUrl = imageAttachment ? imageAttachment.url : null;
+
+        if (!prompt && !imageUrl) {
           await message.reply("How can I help you today?").catch(() => {});
           return;
+        }
+
+        if (!prompt && imageUrl) {
+          prompt = 'Analyze this image for Master.';
         }
 
         await message.channel.sendTyping().catch(() => {});
@@ -90,6 +102,7 @@ module.exports = {
         const executeAi = async () => {
           return await processAiChat({
             prompt,
+            imageUrl,
             user: message.author,
             member: message.member,
             guild: message.guild,
@@ -133,16 +146,51 @@ module.exports = {
 
     if (!message.guild) return;
 
-    // --- 3. AUTO-MUTE & MODERATION SYSTEM ---
+    // --- 3. AUTO-MODERATION & AUTO-MUTE SYSTEM ---
     try {
-      const settings = await getAutoMuteSettings(message.guild.id);
-      if (!settings) return;
-
       const member = message.member;
       if (!member) return;
 
-      // Moderators with ModerateMembers permissions bypass auto-mute
+      // Staff with ModerateMembers permissions bypass auto-moderation
       if (member.permissions.has(PermissionFlagsBits.ModerateMembers)) return;
+
+      // Anti-Invite link detection
+      if (DISCORD_INVITE_REGEX.test(message.content)) {
+        await message.delete().catch(() => {});
+
+        const warnMsg = await message.channel.send({
+          content: `⚠️ ${message.author}, posting unauthorized Discord server invite links is strictly forbidden!`
+        }).catch(() => null);
+        if (warnMsg) setTimeout(() => warnMsg.delete().catch(() => {}), 5000);
+
+        const embed = new EmbedBuilder()
+          .setColor('#E74C3C')
+          .setTitle('🛡️ Anti-Invite: Discord Invite Link Blocked')
+          .addFields(
+            { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
+            { name: 'Channel', value: `<#${message.channel.id}>`, inline: true },
+            { name: 'Content', value: message.content.substring(0, 1000), inline: false }
+          )
+          .setTimestamp();
+
+        const actionRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`mod_timeout10m:${message.author.id}`)
+            .setLabel('Timeout 10m')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`mod_kick:${message.author.id}`)
+            .setLabel('Kick')
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await sendLog(message.guild, embed, [actionRow]);
+        await logModAction(message.guild.id, 'anti-invite (blocked)', message.client.user.id, message.author.id, 'Unauthorized Discord invite link');
+        return;
+      }
+
+      const settings = await getAutoMuteSettings(message.guild.id);
+      if (!settings) return;
 
       // Spam detection with sliding-window timestamps
       if (settings.spam_threshold && settings.spam_duration) {
@@ -176,7 +224,14 @@ module.exports = {
               )
               .setTimestamp();
 
-            await sendLog(message.guild, embed);
+            const actionRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`mod_untimeout:${message.author.id}`)
+                .setLabel('Unmute / Remove Timeout')
+                .setStyle(ButtonStyle.Success)
+            );
+
+            await sendLog(message.guild, embed, [actionRow]);
             await logModAction(message.guild.id, 'auto-mute (spam)', message.client.user.id, message.author.id, 'Spam detected');
 
             state.spamTracking.delete(trackingKey);
@@ -210,7 +265,14 @@ module.exports = {
               )
               .setTimestamp();
 
-            await sendLog(message.guild, embed);
+            const actionRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`mod_untimeout:${message.author.id}`)
+                .setLabel('Unmute / Remove Timeout')
+                .setStyle(ButtonStyle.Success)
+            );
+
+            await sendLog(message.guild, embed, [actionRow]);
             await logModAction(message.guild.id, 'auto-mute (bad word)', message.client.user.id, message.author.id, 'Bad language detected');
 
             await message.delete().catch(() => {});

@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const { addWarning, getWarnings, logModAction } = require('../../services/moderation');
 const { sendLog } = require('../../services/logChannel');
 
@@ -42,7 +42,14 @@ module.exports = {
       )
       .setTimestamp();
 
-    await sendLog(interaction.guild, embed);
+    const actionRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`mod_clearwarn:${user.id}`)
+        .setLabel('Clear Warnings')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    await sendLog(interaction.guild, embed, [actionRow]);
     await interaction.reply({ embeds: [embed] });
 
     try {

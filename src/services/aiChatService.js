@@ -89,6 +89,7 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
   const toolsNote = tools.length > 0
     ? `\n\nAVAILABLE TOOLS & ACTIONS (${toolsListStr}):
 - TIMER & REMINDERS: When the user asks to be reminded, set a timer, or count down time (e.g. "remind me in 1 hour", "set timer 15 seconds", "ingatkan aku dalam 10 menit", "set timer 15 detik"), you MUST call the "set_timer" or "set_reminder" tool. Never pretend or say you will remind them without calling the tool!
+- PERSONALITY SWITCHING: When the user asks to switch, change, or adopt a new persona or character style (e.g. "ganti mode ke tsundere", "switch personality to cool", "ubah sifat jadi sarcastic"), call "change_personality".
 - MODERATION ACTIONS (NATURAL LANGUAGE CALLS):
   * Kick: When asked to kick someone (e.g. "kick @user [reason]", "tolong kick @user"), call "kick_user".
   * Ban: When asked to ban someone (e.g. "ban @user [reason]", "tolong ban @user"), call "ban_user".
@@ -151,6 +152,7 @@ ${gesturesSample}
   * Conclude each response with an in-character remark and your signature kaomoji: ${pInfo.kaomoji || '*(◕‿◕)♡*'}.
 - EMOJIS: Use emojis matching your personality naturally.
 - LANGUAGE ADAPTATION: Automatically mirror and match the language the user is speaking! If the user writes in Indonesian, reply naturally in Indonesian; if the user writes in English, reply in English; if the user writes in another language, reply in that language. Always match Master's language naturally while keeping your expressive companion character!
+- AI VISION & IMAGE ANALYSIS: When Master attaches or provides an image, examine and comment on its visual content, details, colors, characters, text, emotions, or aesthetic appeal with genuine enthusiasm matching your persona!
 - STRICT NO-META RULE: Never output meta-commentary, prompt analysis, drafting thoughts, chain-of-thought, or internal checklists (e.g. "We need answer user", "Let's draft:", "Check guidelines:"). Never call yourself a computer, machine, or script. Speak ONLY in character as Cutie directly engaging with Master!
 - EMBED WRAPPER: Your entire response will be presented inside an aesthetic Discord Embed card. Write clean Markdown (bold, lists, quotes, dialogue) without raw HTML, without manual ASCII tables, and minimize horizontal dividers ('---').`;
 
@@ -165,6 +167,7 @@ ${gesturesSample}
  *
  * @param {Object} context
  * @param {string} context.prompt - The input text from user.
+ * @param {string|null} [context.imageUrl] - Optional image URL for multimodal vision analysis.
  * @param {import('discord.js').User} context.user - Discord user object.
  * @param {import('discord.js').GuildMember|null} context.member - Guild member object (if in guild).
  * @param {import('discord.js').Guild|null} context.guild - Guild object (if in guild).
@@ -173,7 +176,7 @@ ${gesturesSample}
  * @param {Object} [context.interaction] - Discord interaction object if invoked via slash command.
  * @returns {Promise<string>} The generated AI text response.
  */
-async function processAiChat({ prompt, user, member, guild, channel, client, interaction = null }) {
+async function processAiChat({ prompt, imageUrl = null, user, member, guild, channel, client, interaction = null }) {
   const userId = user.id;
   const creatorInfo = await getCreatorInfo(client);
   const resolvedMentions = await resolveMentions(prompt, client);
@@ -182,7 +185,7 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
   const tools = getToolDefinitions(member);
 
   const startTime = Date.now();
-  const pInfo = await getEffectivePersonality(userId, guild?.id);
+  let pInfo = await getEffectivePersonality(userId, guild?.id);
 
   const systemInstruction = await buildSystemInstruction({
     userId,
@@ -193,12 +196,30 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
     pInfo,
   });
 
-  // Persist user prompt to history
-  await pushHistory(userId, 'user', prompt);
+  // Persist user prompt to history (with image marker if attached)
+  const historyPrompt = imageUrl ? `${prompt || ''}\n[Attached Image: ${imageUrl}]`.trim() : (prompt || '');
+  await pushHistory(userId, 'user', historyPrompt);
+
+  const history = await getHistory(userId);
+  if (imageUrl && history.length > 0 && history[history.length - 1].role === 'user') {
+    history[history.length - 1] = {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: prompt && prompt.trim() ? prompt : 'Please analyze and describe this image for Master in your character persona.',
+        },
+        {
+          type: 'image_url',
+          image_url: { url: imageUrl },
+        },
+      ],
+    };
+  }
 
   const messages = [
     { role: 'system', content: systemInstruction },
-    ...(await getHistory(userId)),
+    ...history,
   ];
 
   // Tool execution interaction context
@@ -235,6 +256,10 @@ async function processAiChat({ prompt, user, member, guild, channel, client, int
 
         // Permission & safety checks run inside runTool
         const result = await runTool(toolContext, call.function.name, args);
+
+        if (call.function.name === 'change_personality' && result.ok && result.info) {
+          pInfo = result.info;
+        }
 
         messages.push({
           role: 'tool',

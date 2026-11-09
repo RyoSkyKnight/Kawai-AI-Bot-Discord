@@ -1,3 +1,6 @@
+const { PermissionFlagsBits } = require('discord.js');
+const { logModAction, clearWarnings } = require('../services/moderation');
+
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction) {
@@ -89,6 +92,110 @@ module.exports = {
           return interaction.editReply({
             content: `Failed to update role. Please ensure the bot role is positioned above ${role.name} in Server Settings.`,
           });
+        }
+      }
+
+      // 3. Interactive Mod Actions (from log channel embeds)
+      if (customId.startsWith('mod_')) {
+        const parts = customId.split(':');
+        const action = parts[0];
+        const targetUserId = parts[1];
+
+        if (!interaction.guild) {
+          return interaction.editReply({ content: 'This action can only be used within a server.' });
+        }
+
+        const botMember = interaction.guild.members.me;
+
+        if (action === 'mod_untimeout') {
+          if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return interaction.editReply({ content: 'Access denied: You need the Moderate Members permission.' });
+          }
+          if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return interaction.editReply({ content: 'Bot is missing Moderate Members permission.' });
+          }
+
+          const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+          if (!targetMember) {
+            return interaction.editReply({ content: 'User is not currently in this server.' });
+          }
+          if (targetMember.roles.highest.position >= botMember.roles.highest.position ||
+              targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+            return interaction.editReply({ content: 'Cannot unmute this user due to role hierarchy.' });
+          }
+
+          try {
+            await targetMember.timeout(null, `Unmuted by ${interaction.user.tag} via mod button`);
+            await logModAction(interaction.guild.id, 'untimeout', interaction.user.id, targetUserId, 'Untimed out via mod log button');
+            return interaction.editReply({ content: `✅ Successfully removed timeout for <@${targetUserId}>.` });
+          } catch (err) {
+            return interaction.editReply({ content: `Failed to remove timeout: ${err.message}` });
+          }
+        }
+
+        if (action === 'mod_clearwarn') {
+          if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return interaction.editReply({ content: 'Access denied: You need the Moderate Members permission.' });
+          }
+          try {
+            await clearWarnings(interaction.guild.id, targetUserId);
+            await logModAction(interaction.guild.id, 'clearwarn', interaction.user.id, targetUserId, 'Warnings cleared via mod log button');
+            return interaction.editReply({ content: `✅ Successfully cleared all warnings for <@${targetUserId}>.` });
+          } catch (err) {
+            return interaction.editReply({ content: `Failed to clear warnings: ${err.message}` });
+          }
+        }
+
+        if (action === 'mod_timeout10m') {
+          if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return interaction.editReply({ content: 'Access denied: You need the Moderate Members permission.' });
+          }
+          if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return interaction.editReply({ content: 'Bot is missing Moderate Members permission.' });
+          }
+
+          const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+          if (!targetMember) {
+            return interaction.editReply({ content: 'User is not currently in this server.' });
+          }
+          if (targetMember.roles.highest.position >= botMember.roles.highest.position ||
+              targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+            return interaction.editReply({ content: 'Cannot timeout this user due to role hierarchy.' });
+          }
+
+          try {
+            await targetMember.timeout(10 * 60 * 1000, `Timed out by ${interaction.user.tag} via mod button`);
+            await logModAction(interaction.guild.id, 'timeout', interaction.user.id, targetUserId, '10m timeout via mod log button');
+            return interaction.editReply({ content: `✅ Successfully timed out <@${targetUserId}> for 10 minutes.` });
+          } catch (err) {
+            return interaction.editReply({ content: `Failed to timeout user: ${err.message}` });
+          }
+        }
+
+        if (action === 'mod_kick') {
+          if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) {
+            return interaction.editReply({ content: 'Access denied: You need the Kick Members permission.' });
+          }
+          if (!botMember.permissions.has(PermissionFlagsBits.KickMembers)) {
+            return interaction.editReply({ content: 'Bot is missing Kick Members permission.' });
+          }
+
+          const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+          if (!targetMember) {
+            return interaction.editReply({ content: 'User is not currently in this server.' });
+          }
+          if (targetMember.roles.highest.position >= botMember.roles.highest.position ||
+              targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+            return interaction.editReply({ content: 'Cannot kick this user due to role hierarchy.' });
+          }
+
+          try {
+            await targetMember.kick(`Kicked by ${interaction.user.tag} via mod button`);
+            await logModAction(interaction.guild.id, 'kick', interaction.user.id, targetUserId, 'Kicked via mod log button');
+            return interaction.editReply({ content: `✅ Successfully kicked <@${targetUserId}> from the server.` });
+          } catch (err) {
+            return interaction.editReply({ content: `Failed to kick user: ${err.message}` });
+          }
         }
       }
       return;

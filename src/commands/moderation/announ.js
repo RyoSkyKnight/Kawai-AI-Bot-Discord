@@ -8,3 +8,4 @@ module.exports = {
   },
   execute: announceCommand.execute,
 };
+

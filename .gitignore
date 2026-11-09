@@ -25,4 +25,4 @@ dist-ssr
 
 # Environment variables
 .env*
-guild_settings_local.json
+*_local.json

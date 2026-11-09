@@ -5,18 +5,26 @@ const { sendModernAiResponse, createThinkingEmbed } = require('../../utils/aiRes
 module.exports = {
   data: {
     name: 'ask',
-    description: 'Ask a question to Cutie AI with modern interactive responses',
+    description: 'Ask a question or analyze an image with Cutie AI',
     options: [
       {
         name: 'question',
         type: 3,
-        description: 'The question you want to ask the bot',
+        description: 'The question or prompt for Cutie AI',
         required: true,
-      }
+      },
+      {
+        name: 'image',
+        type: 11, // ApplicationCommandOptionType.Attachment
+        description: 'Optional image to attach for Cutie to analyze visually',
+        required: false,
+      },
     ]
   },
   async execute(interaction) {
     const prompt = interaction.options.getString('question');
+    const imageAttachment = interaction.options.getAttachment('image');
+    const imageUrl = imageAttachment?.url || null;
     const userId = interaction.user.id;
 
     if (state.activeAskUsers.has(userId)) {
@@ -42,6 +50,7 @@ module.exports = {
       const executeAi = async () => {
         return await processAiChat({
           prompt,
+          imageUrl,
           user: interaction.user,
           member: interaction.member,
           guild: interaction.guild,

@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const { logModAction } = require('../../services/moderation');
 const { sendLog } = require('../../services/logChannel');
 const { parseDuration } = require('../../utils/duration');
@@ -63,7 +63,14 @@ module.exports = {
         )
         .setTimestamp();
 
-      await sendLog(interaction.guild, embed);
+      const actionRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`mod_untimeout:${user.id}`)
+          .setLabel('Unmute / Remove Timeout')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await sendLog(interaction.guild, embed, [actionRow]);
       await interaction.reply({ embeds: [embed] });
     } catch (error) {
       await interaction.reply({ content: 'Failed to timeout user.', ephemeral: true });

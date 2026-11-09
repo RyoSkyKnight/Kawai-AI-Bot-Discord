@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, PermissionsBitField, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { addWarning, getWarnings, clearWarnings, logModAction, getModStats } = require('./moderation');
 const { sendLog } = require('./logChannel');
 const { parseDuration, formatDuration } = require('../utils/duration');
@@ -232,7 +232,14 @@ const tools = {
         )
         .setTimestamp();
 
-      await sendLog(interaction.guild, embed);
+      const warnActionRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`mod_clearwarn:${user.id}`)
+          .setLabel('Clear Warnings')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+      await sendLog(interaction.guild, embed, [warnActionRow]);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
       try {
         await user.send({ embeds: [embed] });
@@ -335,7 +342,14 @@ const tools = {
         )
         .setTimestamp();
 
-      await sendLog(interaction.guild, embed);
+      const timeoutActionRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`mod_untimeout:${user.id}`)
+          .setLabel('Unmute / Remove Timeout')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await sendLog(interaction.guild, embed, [timeoutActionRow]);
       await interaction.followUp({ embeds: [embed] }).catch(() => {});
 
       return { ok: true, message: `Successfully timed out/muted ${user.tag} for ${formatDuration(ms, 'en')}.` };
@@ -1101,48 +1115,19 @@ const tools = {
       const user = interaction.user;
       const client = interaction.client;
       const channelId = interaction.channelId || interaction.channel?.id;
-      let initialChannel = interaction.channel;
       const reminderMsg = args.message && args.message.trim() ? args.message.trim() : 'Time is up!';
       const timeStr = formatDuration(ms, 'en');
 
-      console.log(`[Timer] Scheduling reminder for user ${user?.id} in ${ms}ms (${timeStr}): "${reminderMsg}" in channel ${channelId}`);
+      console.log(`[Timer] Scheduling persistent reminder for user ${user?.id} in ${ms}ms (${timeStr}): "${reminderMsg}" in channel ${channelId}`);
 
-      setTimeout(async () => {
-        console.log(`[Timer] Firing reminder for user ${user?.id}: "${reminderMsg}"`);
-        const alertContent = `⏰ <@${user.id}> **Ding-dong! Reminder from Cutie for Master (${timeStr})** 💕\n> "${reminderMsg}"\n*(◕‿◕)♡ Don't forget, Master!*`;
-        let sent = false;
-
-        // 1. Try sending to the channel where it was requested
-        let targetChannel = initialChannel;
-        if ((!targetChannel || typeof targetChannel.send !== 'function') && client && channelId) {
-          targetChannel = await client.channels.fetch(channelId).catch(() => null);
-        }
-
-        if (targetChannel && typeof targetChannel.send === 'function') {
-          try {
-            await targetChannel.send({ content: alertContent });
-            sent = true;
-            console.log(`[Timer] Successfully sent reminder to channel ${channelId}`);
-          } catch (err) {
-            console.error('[Timer] Failed to send to channel:', err.message || err);
-          }
-        }
-
-        // 2. Fallback to DM if channel failed
-        if (!sent && user && typeof user.send === 'function') {
-          try {
-            await user.send({ content: alertContent });
-            sent = true;
-            console.log(`[Timer] Successfully sent reminder to user DM`);
-          } catch (err) {
-            console.error('[Timer] Failed to send to DM:', err.message || err);
-          }
-        }
-
-        if (!sent) {
-          console.error(`[Timer] CRITICAL: Could not deliver reminder to channel ${channelId} or user DM!`);
-        }
-      }, ms);
+      const reminderManager = require('./reminderManager');
+      reminderManager.addReminder({
+        userId: user.id,
+        channelId,
+        targetTimestamp: Date.now() + ms,
+        timeStr,
+        message: reminderMsg,
+      }, client);
 
       return {
         ok: true,
@@ -1334,59 +1319,44 @@ const tools = {
       const userId = interaction.user?.id;
       if (!userId) return { ok: false, message: 'User not identified.' };
 
-      if (!state.userTodos.has(userId)) {
-        state.userTodos.set(userId, []);
-      }
-      const todos = state.userTodos.get(userId);
-
+      const todoManager = require('./todoManager');
       const action = (args.action || 'list').toLowerCase();
 
       if (action === 'add') {
         if (!args.item || !args.item.trim()) {
           return { ok: false, message: 'Please specify the task/note to add!' };
         }
-        todos.push(args.item.trim());
+        const updated = todoManager.addTodo(userId, args.item.trim());
         return {
           ok: true,
-          message: `Successfully added to to-do list: "${args.item.trim()}". You now have ${todos.length} task(s).`,
-          todos,
+          message: `Successfully added to persistent to-do list: "${args.item.trim()}". You now have ${updated.length} task(s).`,
+          todos: updated,
         };
       }
 
       if (action === 'list') {
+        const todos = todoManager.getTodos(userId);
         if (todos.length === 0) {
           return { ok: true, message: 'Your to-do list is currently empty.', todos: [] };
         }
         const formatted = todos.map((t, idx) => `${idx + 1}. ${t}`).join('\n');
         return {
           ok: true,
-          message: `Your to-do list (${todos.length}):\n${formatted}`,
+          message: `Your persistent to-do list (${todos.length}):\n${formatted}`,
           todos,
         };
       }
 
       if (action === 'remove') {
-        if (todos.length === 0) {
-          return { ok: false, message: 'Your to-do list is already empty.' };
-        }
-        const idx = parseInt(args.item, 10);
-        let removed;
-        if (!isNaN(idx) && idx >= 1 && idx <= todos.length) {
-          removed = todos.splice(idx - 1, 1)[0];
-        } else if (args.item) {
-          const matchIdx = todos.findIndex(t => t.toLowerCase().includes(args.item.toLowerCase()));
-          if (matchIdx !== -1) {
-            removed = todos.splice(matchIdx, 1)[0];
-          }
-        }
+        const { removed, remaining } = todoManager.removeTodo(userId, args.item);
         if (!removed) {
           return { ok: false, message: `Could not find a task matching "${args.item}".` };
         }
-        return { ok: true, message: `Successfully removed task: "${removed}". ${todos.length} task(s) remaining.` };
+        return { ok: true, message: `Successfully removed task: "${removed}". ${remaining.length} task(s) remaining.`, todos: remaining };
       }
 
       if (action === 'clear') {
-        state.userTodos.set(userId, []);
+        todoManager.clearTodos(userId);
         return { ok: true, message: 'All items in your to-do list have been cleared.' };
       }
 
@@ -1766,6 +1736,45 @@ const tools = {
       } catch (err) {
         return { ok: false, message: `Failed to broadcast announcement: ${err.message}` };
       }
+    },
+  },
+
+  change_personality: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'change_personality',
+        description: 'Change Cutie\'s active personality mode for this user. Valid modes: "sweet" (Sweet Companion), "tsundere" (Tsundere), "cool" (Cool & Calm), "sarcastic" (Playful Witty), "assistant" (Maid Assistant). Call this whenever the user asks to switch, change, or adopt a new persona or character style.',
+        parameters: {
+          type: 'object',
+          properties: {
+            personality: {
+              type: 'string',
+              enum: ['sweet', 'tsundere', 'cool', 'sarcastic', 'assistant'],
+              description: 'The personality mode to adopt.',
+            },
+          },
+          required: ['personality'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const { setUserPersonality } = require('./userPersonality');
+      const { PERSONALITIES } = require('../utils/constants');
+
+      const target = (args.personality || '').toLowerCase().trim();
+      if (!PERSONALITIES[target]) {
+        return { ok: false, message: `Unknown personality: "${target}". Available styles: sweet, tsundere, cool, sarcastic, assistant.` };
+      }
+
+      await setUserPersonality(interaction.user.id, target);
+      return {
+        ok: true,
+        personality: target,
+        info: PERSONALITIES[target],
+        message: `Successfully switched personality to "${PERSONALITIES[target].name}" (${PERSONALITIES[target].emoji})! Now immediately reply adopting this new character persona.`,
+      };
     },
   },
 };
