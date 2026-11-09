@@ -13,6 +13,7 @@ const PERMISSION_NAMES = {
   [PermissionFlagsBits.ManageMessages]: 'Manage Messages',
   [PermissionFlagsBits.ManageChannels]: 'Manage Channels',
   [PermissionFlagsBits.ManageNicknames]: 'Manage Nicknames',
+  [PermissionFlagsBits.MentionEveryone]: 'Mention Everyone',
   [PermissionFlagsBits.Administrator]: 'Administrator',
 };
 
@@ -78,6 +79,40 @@ async function resolveTarget(interaction, userIdRaw) {
   }
 
   return { error: 'Target user was not found. Please provide a valid @mention or user ID.' };
+}
+
+function extractChannelId(raw) {
+  if (!raw) return null;
+  const match = String(raw).match(/\d{17,20}/);
+  return match ? match[0] : null;
+}
+
+async function resolveChannel(interaction, channelRaw) {
+  if (!interaction.guild) return null;
+  if (!channelRaw) return interaction.channel;
+
+  const channelId = extractChannelId(channelRaw);
+  if (channelId) {
+    let ch = interaction.guild.channels.cache.get(channelId);
+    if (!ch && interaction.client) {
+      ch = await interaction.client.channels.fetch(channelId).catch(() => null);
+    }
+    if (ch) return ch;
+  }
+
+  // Fallback: search by name
+  if (typeof channelRaw === 'string') {
+    const cleanName = channelRaw.replace(/^#/, '').toLowerCase().trim();
+    if (cleanName === 'here' || cleanName === 'this' || cleanName === 'ini' || cleanName === 'current' || cleanName === 'channel ini' || cleanName === 'this channel') {
+      return interaction.channel;
+    }
+    const ch = interaction.guild.channels.cache.find(
+      (c) => c.name.toLowerCase() === cleanName || c.name.toLowerCase().replace(/[-_]/g, ' ') === cleanName.replace(/[-_]/g, ' ')
+    );
+    if (ch) return ch;
+  }
+
+  return interaction.channel;
 }
 
 // Role hierarchy & self/owner protection rules.
@@ -1613,6 +1648,124 @@ const tools = {
           ? `AI auto-reply channel has been successfully set to <#${targetChannelId}>!`
           : 'Failed to save settings to database.',
       };
+    },
+  },
+
+  send_announcement: {
+    permission: PermissionFlagsBits.ManageMessages,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'send_announcement',
+        description: 'Send an official announcement to a specified channel (or current channel), with optional @everyone or @here mentions. Requires ManageMessages permission. Pinging @everyone or @here strictly requires the MentionEveryone permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              description: 'The content or body of the announcement.',
+            },
+            channel: {
+              type: 'string',
+              description: 'Target channel mention (e.g. <#1234567890>), channel ID, or channel name (e.g. "announcements", "pengumuman"). Defaults to current channel if omitted.',
+            },
+            title: {
+              type: 'string',
+              description: 'Title for the announcement embed (e.g. "📢 Server Announcement", "Important Notice", or custom topic). Defaults to "📢 Server Announcement".',
+            },
+            tag: {
+              type: 'string',
+              enum: ['everyone', 'here', 'none'],
+              description: 'Whether to ping "@everyone", "@here", or "none" (default: "none"). Pinging everyone or here strictly requires MentionEveryone permission.',
+            },
+          },
+          required: ['message'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      if (!interaction.guild) {
+        return { ok: false, message: 'Announcements can only be published inside a server.' };
+      }
+
+      const isOwner = interaction.user && interaction.guild.ownerId === interaction.user.id;
+
+      // 1. ManageMessages check (verified also in runTool)
+      if (!isOwner && !hasPermission(interaction, PermissionFlagsBits.ManageMessages)) {
+        return { ok: false, message: "Access denied: You do not have the 'Manage Messages' permission in this server to send announcements." };
+      }
+
+      const rawTag = (args.tag || '').toLowerCase().trim();
+      const messageContent = String(args.message || '').trim();
+      const title = args.title && args.title.trim() ? args.title.trim() : '📢 Server Announcement';
+
+      const shouldPingEveryone = rawTag === 'everyone' || messageContent.includes('@everyone');
+      const shouldPingHere = rawTag === 'here' || messageContent.includes('@here');
+
+      // 2. Strict permission check for MentionEveryone
+      if ((shouldPingEveryone || shouldPingHere) && !isOwner && !hasPermission(interaction, PermissionFlagsBits.MentionEveryone)) {
+        return {
+          ok: false,
+          message: "Access denied: You do not have the 'Mention Everyone' permission in this server to tag @everyone or @here in announcements.",
+        };
+      }
+
+      // 3. Resolve target channel
+      const targetChannel = await resolveChannel(interaction, args.channel);
+      if (!targetChannel || typeof targetChannel.send !== 'function') {
+        return { ok: false, message: 'Could not find a valid text channel to send the announcement.' };
+      }
+
+      // 4. Bot permissions check in target channel
+      const botMember = interaction.guild.members.me;
+      const botPerms = targetChannel.permissionsFor ? targetChannel.permissionsFor(botMember) : null;
+      if (botPerms) {
+        if (!botPerms.has(PermissionFlagsBits.SendMessages) || !botPerms.has(PermissionFlagsBits.EmbedLinks)) {
+          return { ok: false, message: `I am missing permission to send messages or embed links in <#${targetChannel.id}>.` };
+        }
+        if ((shouldPingEveryone || shouldPingHere) && !botPerms.has(PermissionFlagsBits.MentionEveryone)) {
+          return { ok: false, message: `I am missing the 'Mention Everyone' permission in <#${targetChannel.id}> to tag @everyone / @here.` };
+        }
+      }
+
+      // Clean message body if user asked to tag everyone via tag parameter so @everyone isn't repeated awkwardly
+      let cleanMessage = messageContent;
+      if (rawTag === 'everyone') {
+        cleanMessage = cleanMessage.replace(/@everyone/g, '').trim();
+      } else if (rawTag === 'here') {
+        cleanMessage = cleanMessage.replace(/@here/g, '').trim();
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#3498DB')
+        .setTitle(title)
+        .setDescription(cleanMessage)
+        .setFooter({
+          text: `Announced by ${interaction.user?.tag || interaction.user?.username || 'Moderator'}`,
+          iconURL: typeof interaction.user?.displayAvatarURL === 'function' ? interaction.user.displayAvatarURL({ dynamic: true }) : undefined,
+        })
+        .setTimestamp();
+
+      const mentionContent = shouldPingEveryone ? '@everyone' : (shouldPingHere ? '@here' : null);
+
+      try {
+        await targetChannel.send({
+          content: mentionContent,
+          embeds: [embed],
+          allowedMentions: {
+            parse: shouldPingEveryone || shouldPingHere ? ['everyone'] : [],
+          },
+        });
+
+        return {
+          ok: true,
+          channelId: targetChannel.id,
+          tagged: shouldPingEveryone ? '@everyone' : (shouldPingHere ? '@here' : 'none'),
+          message: `Announcement successfully published to <#${targetChannel.id}>${shouldPingEveryone ? ' with @everyone ping' : (shouldPingHere ? ' with @here ping' : '')}!`,
+        };
+      } catch (err) {
+        return { ok: false, message: `Failed to broadcast announcement: ${err.message}` };
+      }
     },
   },
 };

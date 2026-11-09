@@ -97,6 +97,7 @@ async function buildSystemInstruction({ userId, guildId, creatorInfo, tools, res
   * Unmute / Remove Timeout: When asked to unmute or remove timeout (e.g. "unmute @user", "remove timeout @user", "tolong unmute @user"), call "unmute_user" or "untimeout_user".
   * Warn: When asked to warn a user (e.g. "warn @user [reason]", "tolong warn @user"), call "warn_user".
   * Clear Warnings: When asked to clear warnings for a user (e.g. "clear warnings @user"), call "clear_warnings".
+  * Announcement: When asked to broadcast, create, or send an announcement (e.g. "tolong bikin announcement...", "buat pengumuman tag everyone...", "tolong kamu tag everyone dan ucapkan tentang ... di channel ini ya", "announce in #channel..."), call "send_announcement". Set "tag" to "everyone" if asked to tag everyone, "here" if asked to tag here, or "none". Set "channel" to the specified channel (or omit for current channel). Set "title" and "message" based on Master's prompt. Pinging @everyone or @here strictly requires the MentionEveryone permission.
 - SECURITY & PERMISSION ENFORCEMENT: Never pretend to perform any moderation action without calling the tool! Discord server permissions and role hierarchy are strictly verified and enforced by the bot. If a tool reports that permission is denied or hierarchy restricts the action (i.e. ok: false), you MUST convey that exact refusal politely and clearly in character to Master.
 - UTILITY TOOLS:
   * Exact Math: When asked for mathematical calculations (e.g. "calculate 25 * 40", "sqrt(144)"), call "calculate".

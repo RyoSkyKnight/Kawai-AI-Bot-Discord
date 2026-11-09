@@ -27,7 +27,7 @@ const CATEGORIES = {
       { name: '🛠️ Utilities', value: '`/translate` `/calculate` `/weather` `/wiki` `/urban` `/define` `/qr` `/shorten`', inline: true },
       { name: '🎬 Media', value: '`/anime` `/movie` `/crypto` `/gif` `/cat` `/dog`', inline: true },
       { name: '💬 Social', value: '`/poll` `/remind` `/afk` `/embed`', inline: true },
-      { name: '🛡️ Moderation', value: '`/ban` `/kick` `/timeout` `/warn` `/clear` `/lock` `/slowmode` `/modstats`', inline: true },
+      { name: '🛡️ Moderation', value: '`/announce` `/ban` `/kick` `/timeout` `/warn` `/clear` `/lock` `/slowmode` `/modstats`', inline: true },
       { name: '⚙️ Server Setup', value: '`/setwelcome` `/setgoodbye` `/autorole` `/setlog` `/setaskchannel` `/setautomute`', inline: true },
       { name: '🎭 Roles', value: '`/addrole` `/removerole` `/createrole` `/deleterole` `/roles`', inline: true },
     ],
@@ -128,6 +128,7 @@ const CATEGORIES = {
     title: '🛡️ Category: Moderation',
     descriptionText: 'Dedicated staff/moderator commands to maintain server order:',
     fields: [
+      { name: '`/announce [message] [channel] [ping]`', value: 'Broadcast official server announcements with optional @everyone / @here mentions.', inline: false },
       { name: '`/warn [user] [reason]`', value: 'Issue an official warning to a rule-breaking member.', inline: false },
       { name: '`/warnings [user]`', value: 'View warning history recorded for a user.', inline: false },
       { name: '`/clearwarnings [user]`', value: 'Clear all warning records for a user.', inline: false },
