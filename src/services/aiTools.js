@@ -2,7 +2,11 @@ const { PermissionFlagsBits, EmbedBuilder, PermissionsBitField, ActionRowBuilder
 const { addWarning, getWarnings, clearWarnings, logModAction, getModStats } = require('./moderation');
 const { sendLog } = require('./logChannel');
 const { parseDuration, formatDuration } = require('../utils/duration');
-const { updateGuildSettings } = require('./guildSettings');
+const { getGuildSettings, updateGuildSettings } = require('./guildSettings');
+const { getAutoMuteSettings, updateAutoMuteSettings } = require('./autoMute');
+const { getBadWords, addBadWord, removeBadWord } = require('./badWords');
+const { clearHistory } = require('./conversationHistory');
+const { eightBallResponses, PERSONALITIES } = require('../utils/constants');
 const math = require('mathjs');
 const state = require('../state');
 
@@ -12,6 +16,8 @@ const PERMISSION_NAMES = {
   [PermissionFlagsBits.ModerateMembers]: 'Moderate Members (Mute/Timeout/Warn)',
   [PermissionFlagsBits.ManageMessages]: 'Manage Messages',
   [PermissionFlagsBits.ManageChannels]: 'Manage Channels',
+  [PermissionFlagsBits.ManageRoles]: 'Manage Roles',
+  [PermissionFlagsBits.ManageGuild]: 'Manage Server (Manage Guild)',
   [PermissionFlagsBits.ManageNicknames]: 'Manage Nicknames',
   [PermissionFlagsBits.MentionEveryone]: 'Mention Everyone',
   [PermissionFlagsBits.Administrator]: 'Administrator',
@@ -113,6 +119,19 @@ async function resolveChannel(interaction, channelRaw) {
   }
 
   return interaction.channel;
+}
+
+function resolveRole(interaction, roleRaw) {
+  if (!interaction.guild || !roleRaw) return null;
+  const roleId = String(roleRaw).replace(/[<@&>]/g, '').trim();
+  let role = interaction.guild.roles.cache.get(roleId);
+  if (!role) {
+    const query = String(roleRaw).toLowerCase().replace(/^@/, '').trim();
+    role = interaction.guild.roles.cache.find(
+      r => r.name.toLowerCase() === query || r.name.toLowerCase().includes(query)
+    );
+  }
+  return role;
 }
 
 // Role hierarchy & self/owner protection rules.
@@ -1775,6 +1794,949 @@ const tools = {
         info: PERSONALITIES[target],
         message: `Successfully switched personality to "${PERSONALITIES[target].name}" (${PERSONALITIES[target].emoji})! Now immediately reply adopting this new character persona.`,
       };
+    },
+  },
+
+  lock_channel: {
+    permission: PermissionFlagsBits.ManageChannels,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'lock_channel',
+        description: 'Lock a text channel to prevent members from sending messages (e.g. "lock channel ini", "lock #chat [reason]"). Requires ManageChannels permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            channel: { type: 'string', description: 'Channel name, ID, or mention (defaults to current channel if omitted)' },
+            reason: { type: 'string', description: 'Reason for locking the channel' },
+          },
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return { ok: false, message: 'I am missing the Manage Channels permission in this server.' };
+      }
+      const targetChannel = await resolveChannel(interaction, args.channel);
+      if (!targetChannel || !targetChannel.permissionOverwrites) {
+        return { ok: false, message: 'Invalid or unsupported channel for locking.' };
+      }
+
+      const reason = args.reason || 'Channel locked via Cutie AI';
+      try {
+        await targetChannel.permissionOverwrites.edit(interaction.guild.id, {
+          SendMessages: false,
+        });
+        const embed = new EmbedBuilder()
+          .setColor('#E74C3C')
+          .setTitle('🔒 Channel Locked')
+          .setDescription(`This channel has been locked.\n**Reason:** ${reason}`)
+          .setFooter({ text: `Locked by ${interaction.user.tag}` })
+          .setTimestamp();
+
+        await targetChannel.send({ embeds: [embed] }).catch(() => {});
+        return { ok: true, channelId: targetChannel.id, message: `Successfully locked channel <#${targetChannel.id}>.` };
+      } catch (err) {
+        return { ok: false, message: `Failed to lock channel: ${err.message}` };
+      }
+    },
+  },
+
+  unlock_channel: {
+    permission: PermissionFlagsBits.ManageChannels,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'unlock_channel',
+        description: 'Unlock a locked text channel so members can chat again (e.g. "unlock channel ini", "buka kunci channel"). Requires ManageChannels permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            channel: { type: 'string', description: 'Channel name, ID, or mention (defaults to current channel if omitted)' },
+            reason: { type: 'string', description: 'Reason for unlocking the channel' },
+          },
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return { ok: false, message: 'I am missing the Manage Channels permission in this server.' };
+      }
+      const targetChannel = await resolveChannel(interaction, args.channel);
+      if (!targetChannel || !targetChannel.permissionOverwrites) {
+        return { ok: false, message: 'Invalid or unsupported channel for unlocking.' };
+      }
+
+      const reason = args.reason || 'Channel unlocked via Cutie AI';
+      try {
+        await targetChannel.permissionOverwrites.edit(interaction.guild.id, {
+          SendMessages: null,
+        });
+        const embed = new EmbedBuilder()
+          .setColor('#3498DB')
+          .setTitle('🔓 Channel Unlocked')
+          .setDescription(`This channel has been unlocked.\n**Reason:** ${reason}`)
+          .setFooter({ text: `Unlocked by ${interaction.user.tag}` })
+          .setTimestamp();
+
+        await targetChannel.send({ embeds: [embed] }).catch(() => {});
+        return { ok: true, channelId: targetChannel.id, message: `Successfully unlocked channel <#${targetChannel.id}>.` };
+      } catch (err) {
+        return { ok: false, message: `Failed to unlock channel: ${err.message}` };
+      }
+    },
+  },
+
+  assign_role: {
+    permission: PermissionFlagsBits.ManageRoles,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'assign_role',
+        description: 'Give / add a role to a server member (e.g. "kasih role Gamer ke @user", "add role VIP to @user"). Requires ManageRoles permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            userId: { type: 'string', description: 'Discord user ID or mention' },
+            role: { type: 'string', description: 'Role name, mention, or ID to assign' },
+            reason: { type: 'string', description: 'Reason for assigning the role' },
+          },
+          required: ['userId', 'role'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return { ok: false, message: 'I am missing the Manage Roles permission in this server.' };
+      }
+
+      const { user, member, error } = await resolveTarget(interaction, args.userId);
+      if (error) return { ok: false, message: error };
+      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
+
+      const role = resolveRole(interaction, args.role);
+      if (!role) {
+        return { ok: false, message: `Role "${args.role}" was not found in this server.` };
+      }
+
+      if (role.position >= botMember.roles.highest.position) {
+        return { ok: false, message: `I cannot assign the "${role.name}" role because it is positioned higher than or equal to my highest role.` };
+      }
+      if (role.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
+        return { ok: false, message: `You cannot assign the "${role.name}" role because it is positioned higher than or equal to your highest role.` };
+      }
+
+      if (member.roles.cache.has(role.id)) {
+        return { ok: false, message: `${user.tag} already has the "${role.name}" role!` };
+      }
+
+      const reason = args.reason || `Assigned by ${interaction.user.tag} via Cutie AI`;
+      try {
+        await member.roles.add(role, reason);
+        return { ok: true, message: `Successfully assigned role **${role.name}** to ${user.tag}.` };
+      } catch (err) {
+        return { ok: false, message: `Failed to assign role: ${err.message}` };
+      }
+    },
+  },
+
+  remove_role: {
+    permission: PermissionFlagsBits.ManageRoles,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_role',
+        description: 'Remove a role from a server member (e.g. "cabut role VIP dari @user", "remove role Gamer from @user"). Requires ManageRoles permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            userId: { type: 'string', description: 'Discord user ID or mention' },
+            role: { type: 'string', description: 'Role name, mention, or ID to remove' },
+            reason: { type: 'string', description: 'Reason for removing the role' },
+          },
+          required: ['userId', 'role'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return { ok: false, message: 'I am missing the Manage Roles permission in this server.' };
+      }
+
+      const { user, member, error } = await resolveTarget(interaction, args.userId);
+      if (error) return { ok: false, message: error };
+      if (!member) return { ok: false, message: `${user.tag} is not currently a member of this server.` };
+
+      const role = resolveRole(interaction, args.role);
+      if (!role) {
+        return { ok: false, message: `Role "${args.role}" was not found in this server.` };
+      }
+
+      if (role.position >= botMember.roles.highest.position) {
+        return { ok: false, message: `I cannot remove the "${role.name}" role because it is positioned higher than or equal to my highest role.` };
+      }
+      if (role.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
+        return { ok: false, message: `You cannot remove the "${role.name}" role because it is positioned higher than or equal to your highest role.` };
+      }
+
+      if (!member.roles.cache.has(role.id)) {
+        return { ok: false, message: `${user.tag} does not have the "${role.name}" role!` };
+      }
+
+      const reason = args.reason || `Removed by ${interaction.user.tag} via Cutie AI`;
+      try {
+        await member.roles.remove(role, reason);
+        return { ok: true, message: `Successfully removed role **${role.name}** from ${user.tag}.` };
+      } catch (err) {
+        return { ok: false, message: `Failed to remove role: ${err.message}` };
+      }
+    },
+  },
+
+  create_role: {
+    permission: PermissionFlagsBits.ManageRoles,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'create_role',
+        description: 'Create a new role in the server (e.g. "buatkan role baru namanya VIP warnanya #FFD700"). Requires ManageRoles permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Name of the new role' },
+            color: { type: 'string', description: 'Color hex code, e.g. "#FF0000", "#3498DB"' },
+            hoist: { type: 'boolean', description: 'Display members separately in the sidebar' },
+            mentionable: { type: 'boolean', description: 'Allow anyone to mention this role' },
+          },
+          required: ['name'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return { ok: false, message: 'I am missing the Manage Roles permission in this server.' };
+      }
+
+      const name = String(args.name).trim();
+      const color = args.color || '#99AAB5';
+      const hoist = Boolean(args.hoist);
+      const mentionable = Boolean(args.mentionable);
+
+      try {
+        const role = await interaction.guild.roles.create({
+          name,
+          color,
+          hoist,
+          mentionable,
+          reason: `Created by ${interaction.user.tag} via Cutie AI`,
+        });
+        return { ok: true, roleId: role.id, name: role.name, hexColor: role.hexColor, message: `Successfully created new role **${role.name}** (${role.hexColor})!` };
+      } catch (err) {
+        return { ok: false, message: `Failed to create role: ${err.message}` };
+      }
+    },
+  },
+
+  delete_role: {
+    permission: PermissionFlagsBits.ManageRoles,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'delete_role',
+        description: 'Delete a role from the server (e.g. "hapus role Tester"). Requires ManageRoles permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            role: { type: 'string', description: 'Role name, mention, or ID to delete' },
+          },
+          required: ['role'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const botMember = interaction.guild?.members.me;
+      if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return { ok: false, message: 'I am missing the Manage Roles permission in this server.' };
+      }
+
+      const role = resolveRole(interaction, args.role);
+      if (!role) {
+        return { ok: false, message: `Role "${args.role}" was not found in this server.` };
+      }
+
+      if (role.position >= botMember.roles.highest.position) {
+        return { ok: false, message: `I cannot delete the "${role.name}" role because it is positioned higher than or equal to my highest role.` };
+      }
+      if (role.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
+        return { ok: false, message: `You cannot delete the "${role.name}" role because it is positioned higher than or equal to your highest role.` };
+      }
+
+      const roleName = role.name;
+      try {
+        await role.delete(`Deleted by ${interaction.user.tag} via Cutie AI`);
+        return { ok: true, message: `Successfully deleted role **${roleName}** from the server.` };
+      } catch (err) {
+        return { ok: false, message: `Failed to delete role: ${err.message}` };
+      }
+    },
+  },
+
+  get_role_info: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_role_info',
+        description: 'Get detailed information about a server role (e.g. "info role Gamer", "roleinfo Admin").',
+        parameters: {
+          type: 'object',
+          properties: {
+            role: { type: 'string', description: 'Role name, mention, or ID' },
+          },
+          required: ['role'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const role = resolveRole(interaction, args.role);
+      if (!role) {
+        return { ok: false, message: `Role "${args.role}" was not found.` };
+      }
+
+      return {
+        ok: true,
+        name: role.name,
+        id: role.id,
+        color: role.hexColor,
+        membersCount: role.members.size,
+        hoisted: role.hoist,
+        mentionable: role.mentionable,
+        createdAt: role.createdAt ? role.createdAt.toISOString().split('T')[0] : 'Unknown',
+        message: `Role **${role.name}** (ID: ${role.id}): Color ${role.hexColor}, ${role.members.size} members, Hoisted: ${role.hoist ? 'Yes' : 'No'}, Mentionable: ${role.mentionable ? 'Yes' : 'No'}.`,
+      };
+    },
+  },
+
+  list_server_roles: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'list_server_roles',
+        description: 'List all roles in this server and their member counts (e.g. "daftar role di server", "list roles").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      if (!interaction.guild) return { ok: false, message: 'This can only be checked in a server.' };
+      const rawCache = interaction.guild.roles?.cache;
+      const roleList = Array.from(rawCache?.values ? rawCache.values() : (Array.isArray(rawCache) ? rawCache : []));
+      const roles = roleList
+        .filter(r => r.id !== interaction.guild.id)
+        .sort((a, b) => (b.position || 0) - (a.position || 0))
+        .map(r => `${r.name} (${r.members?.size || 0} members)`);
+
+      return {
+        ok: true,
+        count: roles.length,
+        roles: roles.slice(0, 30),
+        message: `Server has ${roles.length} roles:\n` + roles.slice(0, 20).join('\n') + (roles.length > 20 ? `\n...and ${roles.length - 20} more.` : ''),
+      };
+    },
+  },
+
+  set_welcome_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_welcome_channel',
+        description: 'Set the automatic welcome message and channel for new members (e.g. "pasang welcome channel di #welcome", "set welcome channel to #welcome with message Welcome {user}!"). Requires ManageGuild permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            channel: { type: 'string', description: 'Channel name, ID, or mention' },
+            message: { type: 'string', description: 'Optional welcome text ({user} = mention, {server} = server name)' },
+          },
+          required: ['channel'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const channel = await resolveChannel(interaction, args.channel);
+      if (!channel) return { ok: false, message: 'Channel not found.' };
+
+      const msg = args.message || 'Welcome to {server}, {user}!';
+      await updateGuildSettings(interaction.guild.id, {
+        welcome_channel: channel.id,
+        welcome_message: msg,
+      });
+      return { ok: true, channelId: channel.id, message: `Welcome channel successfully set to <#${channel.id}> with message: "${msg}".` };
+    },
+  },
+
+  remove_welcome_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_welcome_channel',
+        description: 'Disable and remove automatic welcome messages for this server. Requires ManageGuild permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateGuildSettings(interaction.guild.id, { welcome_channel: null });
+      return { ok: true, message: 'Automatic welcome messages have been disabled.' };
+    },
+  },
+
+  set_goodbye_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_goodbye_channel',
+        description: 'Set the goodbye message and channel when members leave the server (e.g. "pasang goodbye di #goodbye"). Requires ManageGuild permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            channel: { type: 'string', description: 'Channel name, ID, or mention' },
+            message: { type: 'string', description: 'Optional goodbye message ({username} = name, {server} = server name)' },
+          },
+          required: ['channel'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const channel = await resolveChannel(interaction, args.channel);
+      if (!channel) return { ok: false, message: 'Channel not found.' };
+
+      const msg = args.message || 'Goodbye {username}, take care!';
+      await updateGuildSettings(interaction.guild.id, {
+        goodbye_channel: channel.id,
+        goodbye_message: msg,
+      });
+      return { ok: true, channelId: channel.id, message: `Goodbye channel successfully set to <#${channel.id}> with message: "${msg}".` };
+    },
+  },
+
+  remove_goodbye_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_goodbye_channel',
+        description: 'Disable and remove goodbye messages for this server. Requires ManageGuild permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateGuildSettings(interaction.guild.id, { goodbye_channel: null });
+      return { ok: true, message: 'Goodbye messages have been disabled.' };
+    },
+  },
+
+  set_autorole: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_autorole',
+        description: 'Set the automatic role given to new members upon joining (e.g. "set autorole Member", "pasang autorole @Member"). Requires ManageGuild permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            role: { type: 'string', description: 'Role name, mention, or ID' },
+          },
+          required: ['role'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const role = resolveRole(interaction, args.role);
+      if (!role) return { ok: false, message: `Role "${args.role}" was not found.` };
+
+      const botMember = interaction.guild?.members.me;
+      if (role.position >= botMember?.roles.highest.position) {
+        return { ok: false, message: `I cannot assign "${role.name}" automatically because it is higher than my highest role.` };
+      }
+
+      await updateGuildSettings(interaction.guild.id, { autorole: role.id });
+      return { ok: true, roleId: role.id, message: `Autorole successfully set to **${role.name}** (<@&${role.id}>).` };
+    },
+  },
+
+  remove_autorole: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_autorole',
+        description: 'Disable automatic role assignment for new members. Requires ManageGuild permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateGuildSettings(interaction.guild.id, { autorole: null });
+      return { ok: true, message: 'Autorole has been disabled.' };
+    },
+  },
+
+  set_log_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_log_channel',
+        description: 'Set the dedicated moderation audit log channel (e.g. "pasang log channel di #mod-logs"). Requires ManageGuild permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            channel: { type: 'string', description: 'Channel name, ID, or mention' },
+          },
+          required: ['channel'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const channel = await resolveChannel(interaction, args.channel);
+      if (!channel) return { ok: false, message: 'Channel not found.' };
+
+      await updateGuildSettings(interaction.guild.id, { log_channel: channel.id });
+      return { ok: true, channelId: channel.id, message: `Moderation log channel successfully set to <#${channel.id}>.` };
+    },
+  },
+
+  remove_log_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_log_channel',
+        description: 'Remove the dedicated moderation log channel. Requires ManageGuild permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateGuildSettings(interaction.guild.id, { log_channel: null });
+      return { ok: true, message: 'Moderation log channel has been removed.' };
+    },
+  },
+
+  remove_ai_channel: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_ai_channel',
+        description: 'Remove the designated AI channel so Cutie responds via mention or /ask everywhere. Requires ManageGuild permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateGuildSettings(interaction.guild.id, { ask_channel_id: null });
+      return { ok: true, message: 'Dedicated AI channel has been removed. Cutie will now respond when mentioned or via /ask.' };
+    },
+  },
+
+  get_server_config: {
+    permission: PermissionFlagsBits.ManageGuild,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_server_config',
+        description: 'View the comprehensive server automation, moderation, and AI configuration dashboard (alias for /serverconfig). Requires ManageGuild permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      if (!interaction.guild) return { ok: false, message: 'Can only be checked inside a server.' };
+      const settings = (await getGuildSettings(interaction.guild.id)) || {};
+      const autoMute = (await getAutoMuteSettings(interaction.guild.id)) || {};
+      const badWords = (await getBadWords(interaction.guild.id)) || [];
+
+      return {
+        ok: true,
+        welcomeChannel: settings.welcome_channel ? `<#${settings.welcome_channel}>` : 'Disabled',
+        goodbyeChannel: settings.goodbye_channel ? `<#${settings.goodbye_channel}>` : 'Disabled',
+        autorole: settings.autorole ? `<@&${settings.autorole}>` : 'None',
+        logChannel: settings.log_channel ? `<#${settings.log_channel}>` : 'None',
+        askChannel: settings.ask_channel_id ? `<#${settings.ask_channel_id}>` : 'Everywhere (via mention)',
+        personality: settings.personality || 'sweet',
+        antiSpam: autoMute.spam_threshold ? `${autoMute.spam_threshold} msgs/5s (mute ${autoMute.spam_duration})` : 'Disabled',
+        badWordsFilter: autoMute.badword_enabled ? `${badWords.length} words (mute ${autoMute.badword_duration})` : 'Disabled',
+        antiInvite: 'Enabled',
+      };
+    },
+  },
+
+  configure_auto_mute: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'configure_auto_mute',
+        description: 'Configure anti-spam auto-mute settings (e.g. "set auto-mute 5 pesan per 5 detik mute 10m"). Requires ModerateMembers permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            threshold: { type: 'integer', description: 'Number of messages in 5s (3-20)' },
+            duration: { type: 'string', description: 'Mute duration like 10m, 1h' },
+          },
+          required: ['threshold', 'duration'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const threshold = Math.max(3, Math.min(parseInt(args.threshold, 10) || 5, 20));
+      const ms = parseDuration(args.duration);
+      if (!ms) return { ok: false, message: 'Invalid duration. Use formats like 10m, 1h.' };
+
+      await updateAutoMuteSettings(interaction.guild.id, {
+        spam_threshold: threshold,
+        spam_duration: args.duration,
+      });
+      return { ok: true, message: `Anti-spam auto-mute set to ${threshold} messages within 5 seconds ➔ Mute ${args.duration}.` };
+    },
+  },
+
+  disable_auto_mute: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'disable_auto_mute',
+        description: 'Disable spam auto-mute in this server. Requires ModerateMembers permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateAutoMuteSettings(interaction.guild.id, {
+        spam_threshold: null,
+        spam_duration: null,
+      });
+      return { ok: true, message: 'Anti-spam auto-mute has been disabled.' };
+    },
+  },
+
+  add_bad_word: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'add_bad_word',
+        description: 'Add a word or phrase to the server blacklist (e.g. "tambahkan badword: [kata]"). Requires ModerateMembers permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            word: { type: 'string', description: 'The word or phrase to blacklist' },
+          },
+          required: ['word'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const word = String(args.word).toLowerCase().trim();
+      if (!word) return { ok: false, message: 'Please provide a valid word.' };
+
+      const success = await addBadWord(interaction.guild.id, word);
+      if (success) {
+        return { ok: true, message: `Added "${word}" to the blacklisted words list.` };
+      }
+      return { ok: false, message: `"${word}" is already on the blacklist or could not be added.` };
+    },
+  },
+
+  remove_bad_word: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'remove_bad_word',
+        description: 'Remove a word from the server blacklist (e.g. "hapus badword: [kata]"). Requires ModerateMembers permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            word: { type: 'string', description: 'The word to remove' },
+          },
+          required: ['word'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const word = String(args.word).toLowerCase().trim();
+      const success = await removeBadWord(interaction.guild.id, word);
+      if (success) {
+        return { ok: true, message: `Removed "${word}" from the blacklisted words list.` };
+      }
+      return { ok: false, message: `"${word}" was not found in the blacklist.` };
+    },
+  },
+
+  configure_badword_mute: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'configure_badword_mute',
+        description: 'Enable automatic timeout/mute when members use blacklisted words (e.g. "aktifkan badword mute 10m"). Requires ModerateMembers permission.',
+        parameters: {
+          type: 'object',
+          properties: {
+            duration: { type: 'string', description: 'Mute duration, e.g. "10m", "1h"' },
+          },
+          required: ['duration'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const ms = parseDuration(args.duration);
+      if (!ms) return { ok: false, message: 'Invalid duration. Use formats like 10m, 1h.' };
+
+      await updateAutoMuteSettings(interaction.guild.id, {
+        badword_enabled: true,
+        badword_duration: args.duration,
+      });
+      return { ok: true, message: `Bad words auto-mute enabled with a ${args.duration} timeout duration.` };
+    },
+  },
+
+  disable_badword_mute: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'disable_badword_mute',
+        description: 'Disable automatic muting for blacklisted words. Requires ModerateMembers permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await updateAutoMuteSettings(interaction.guild.id, {
+        badword_enabled: false,
+      });
+      return { ok: true, message: 'Automatic muting for blacklisted words has been disabled.' };
+    },
+  },
+
+  list_bad_words: {
+    permission: PermissionFlagsBits.ModerateMembers,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'list_bad_words',
+        description: 'List all words currently blacklisted on this server. Requires ModerateMembers permission.',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      const words = await getBadWords(interaction.guild.id);
+      return {
+        ok: true,
+        count: words.length,
+        words,
+        message: words.length > 0 ? `Server has ${words.length} blacklisted word(s): ${words.join(', ')}` : 'No blacklisted words found on this server.',
+      };
+    },
+  },
+
+  set_afk: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'set_afk',
+        description: 'Set your AFK status with an optional reason (e.g. "aku afk dulu mau makan", "set afk studying").',
+        parameters: {
+          type: 'object',
+          properties: {
+            reason: { type: 'string', description: 'Reason for going AFK' },
+          },
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const reason = args.reason || 'AFK';
+      state.afkUsers.set(interaction.user.id, { reason, time: Date.now() });
+      return { ok: true, reason, message: `You are now set as AFK: "${reason}". I will notify anyone who mentions you!` };
+    },
+  },
+
+  clear_chat_history: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'clear_chat_history',
+        description: 'Reset / clear your conversational memory with Cutie AI so the next message starts with a clean context (e.g. "lupakan chat sebelumnya", "reset memory", "clear history").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      await clearHistory(interaction.user.id);
+      return { ok: true, message: 'Your conversation history has been reset. We now have a fresh clean memory context!' };
+    },
+  },
+
+  get_uptime: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_uptime',
+        description: 'Get bot system uptime duration since its last startup (e.g. "cek uptime bot", "berapa lama bot aktif?").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler(interaction) {
+      const uptimeMs = interaction.client?.uptime || 0;
+      return { ok: true, uptime: formatDuration(uptimeMs, 'en'), message: `Bot has been running online for ${formatDuration(uptimeMs, 'en')}.` };
+    },
+  },
+
+  shorten_url: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'shorten_url',
+        description: 'Shorten a URL into a compact is.gd link (e.g. "pendekin link ini: https://...").',
+        parameters: {
+          type: 'object',
+          properties: {
+            url: { type: 'string', description: 'The long URL to shorten' },
+          },
+          required: ['url'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      let validUrl = String(args.url).trim();
+      if (!/^https?:\/\//i.test(validUrl)) {
+        validUrl = 'https://' + validUrl;
+      }
+      try {
+        new URL(validUrl);
+      } catch (_) {
+        return { ok: false, message: 'Invalid URL format.' };
+      }
+
+      try {
+        const response = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(validUrl)}`);
+        const shortUrl = (await response.text()).trim();
+        if (!response.ok || shortUrl.startsWith('Error:')) {
+          return { ok: false, message: `Failed to shorten URL: ${shortUrl || 'Service error'}` };
+        }
+        return { ok: true, original: validUrl, shortened: shortUrl, message: `Shortened link: ${shortUrl}` };
+      } catch (err) {
+        return { ok: false, message: `Failed to shorten URL: ${err.message}` };
+      }
+    },
+  },
+
+  magic_8ball: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'magic_8ball',
+        description: 'Ask the magic 8-ball a yes/no question (e.g. "tanya 8ball: apakah hari ini hujan?").',
+        parameters: {
+          type: 'object',
+          properties: {
+            question: { type: 'string', description: 'Your question for the 8-ball' },
+          },
+          required: ['question'],
+        },
+      },
+    },
+    async handler(interaction, args) {
+      const responses = eightBallResponses || [
+        'It is certain.', 'Without a doubt.', 'Yes definitely.',
+        'Ask again later.', 'Cannot predict now.',
+        "Don't count on it.", 'My reply is no.', 'Very doubtful.'
+      ];
+      const answer = responses[Math.floor(Math.random() * responses.length)];
+      return { ok: true, question: args.question, answer, message: `🎱 Question: "${args.question}" — Answer: **${answer}**` };
+    },
+  },
+
+  trivia_quiz: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'trivia_quiz',
+        description: 'Get a fun random trivia quiz question (e.g. "kasih pertanyaan trivia", "main trivia dong").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler() {
+      try {
+        const response = await fetch('https://opentdb.com/api.php?amount=1&type=multiple');
+        const data = await response.json();
+        const item = data.results[0];
+        const answers = [...item.incorrect_answers, item.correct_answer].sort(() => Math.random() - 0.5);
+        return {
+          ok: true,
+          category: item.category,
+          difficulty: item.difficulty,
+          question: item.question,
+          choices: answers,
+          correctAnswer: item.correct_answer,
+          message: `🧠 Category: ${item.category} (${item.difficulty})\nQuestion: ${item.question}\n\nChoices:\n${answers.map((a, i) => `${i + 1}. ${a}`).join('\n')}\n*(Correct answer: ${item.correct_answer})*`,
+        };
+      } catch (err) {
+        return { ok: false, message: 'Failed to fetch trivia question.' };
+      }
+    },
+  },
+
+  get_random_cat: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_random_cat',
+        description: 'Get an adorable random cat photo (e.g. "foto kucing", "gambar cat lucu").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler() {
+      try {
+        const res = await fetch('https://api.thecatapi.com/v1/images/search');
+        const data = await res.json();
+        return { ok: true, imageUrl: data[0].url, message: `Here is a cute cat for Master! ${data[0].url}` };
+      } catch (err) {
+        return { ok: false, message: 'Failed to fetch cat image.' };
+      }
+    },
+  },
+
+  get_random_dog: {
+    permission: null,
+    definition: {
+      type: 'function',
+      function: {
+        name: 'get_random_dog',
+        description: 'Get a cute random dog photo (e.g. "foto anjing", "gambar puppy").',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+    async handler() {
+      try {
+        const res = await fetch('https://dog.ceo/api/breeds/image/random');
+        const data = await res.json();
+        return { ok: true, imageUrl: data.message, message: `Here is a lovely puppy for Master! ${data.message}` };
+      } catch (err) {
+        return { ok: false, message: 'Failed to fetch dog image.' };
+      }
     },
   },
 };
